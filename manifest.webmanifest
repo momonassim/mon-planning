@@ -1,0 +1,17 @@
+{
+  "name": "Mon Planning",
+  "short_name": "Mon Planning",
+  "description": "Ton planning 5x8, ta remonte et ta paye, sur ton téléphone.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#E4E1DD",
+  "theme_color": "#E4E1DD",
+  "icons": [
+    {"src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"}
+  ]
+}
