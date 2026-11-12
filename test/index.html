@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MP Test">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="icon" type="image/png" href="../favicon.png">
+<meta name="theme-color" content="#E4E1DD">
+<title>Mon Planning Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* Matière de l’app Mac : papier mat gris chaud */
+:root{
+  --fond:#E4E1DD; --carte:#E6E3DF; --carteHaut:#F2F0ED; --tranche:#B3ADA6;
+  --ombre:126,119,111; --lumiere:#F4F2EF;
+  --ink:#5B544C; --muted:#978F86;
+  --matin:#E8907C; --aprem:#E2B347; --nuit:#3F4785; --repos:#7FAE76;
+  --sauge:#A9C29E; --saugeHaut:#C4D6BB; --saugeTranche:#7F9876;
+  --taupe:#A89B8C; --or:#D9AE4E; --indigo:#4B4F9C; --corail:#E2876F; --rouge:#D2473F; --vert:#7FAE76;
+  --font:ui-rounded,"SF Pro Rounded","Nunito",system-ui,-apple-system,sans-serif;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+:root[data-theme="dark"]{ /* l’app Mac est en clair : le sombre n’est activé que sur demande */ color-scheme:light }
+*,*::before,*::after{box-sizing:border-box}
+html{height:100%;overflow:hidden;overscroll-behavior:none;scroll-padding-top:env(safe-area-inset-top,0px)}
+/* page fixe comme une vraie app : rien ne glisse, pas de zoom, pas de sélection */
+body{margin:0;position:fixed;inset:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;touch-action:manipulation;
+  background:var(--fond);color:var(--ink);font-family:var(--font);
+  -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input{-webkit-user-select:text;user-select:text}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+button:focus-visible{outline:2px solid var(--indigo);outline-offset:4px}
+
+/* Plaque épaisse (cartes, boutons) : dessus en dégradé, tranche dessous, ombre douce, lumière diffuse */
+.plaque{background:linear-gradient(135deg,var(--carteHaut),var(--carte));
+  box-shadow:0 5px 0 var(--tranche),9px 14px 22px rgba(var(--ombre),.42),-7px -7px 16px var(--lumiere);
+  transition:transform .15s ease, box-shadow .15s ease}
+.plaque:active{transform:translateY(4px);box-shadow:0 1px 0 var(--tranche),5px 7px 12px rgba(var(--ombre),.38),-5px -5px 12px var(--lumiere)}
+.creux{background:var(--carte);box-shadow:inset 5px 6px 10px rgba(var(--ombre),.45),inset -4px -5px 9px var(--lumiere)}
+/* Chiffres creusés pour de vrai : ombre intérieure en haut à gauche, lumière intérieure en bas à droite,
+   arête claire autour — le même effet que les creux néomorphes, appliqué à l’intérieur du chiffre */
+.grave{color:#4A443E;text-shadow:none;filter:url(#creux)}
+
+.app.fixe{overflow-y:hidden}
+.grille{touch-action:none}
+.app{position:absolute;inset:0;max-width:480px;margin:0 auto;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  padding:calc(14px + env(safe-area-inset-top,0px)) 12px calc(98px + env(safe-area-inset-bottom,0px))}
+.view{display:none}
+.view.on{display:block;animation:entre .35s ease}
+@keyframes entre{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* Planning façon Calendrier Apple, dans la matière néomorphe */
+#v-plan.on{display:flex;flex-direction:column;height:100%}
+.dalle{background:linear-gradient(135deg,var(--carteHaut),var(--carte));
+  box-shadow:0 5px 0 var(--tranche),9px 14px 22px rgba(var(--ombre),.42),-7px -7px 16px var(--lumiere)}
+.barre{display:flex;align-items:center;justify-content:space-between;margin:0 2px 4px}
+.lien{font-size:16px;font-weight:800;color:var(--indigo);display:flex;align-items:center;gap:3px;padding:6px 2px}
+.lien svg{width:14px;height:14px;stroke:currentColor;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.pills{display:flex;gap:10px}
+.pill{border-radius:99px;padding:8px 14px;font-size:13.5px;font-weight:800;color:var(--muted)}
+.pill.ind{color:var(--indigo)}
+.moisTitre{margin:4px 4px 14px;font-size:34px;font-weight:900;letter-spacing:-.02em;line-height:1;perspective:300px}
+.cal{border-radius:24px;padding:10px 6px 8px}
+.semaine{display:grid;grid-template-columns:repeat(7,1fr);padding:0 0 8px}
+.semaine span{text-align:center;font-size:12px;font-weight:900}
+.semaine .we{opacity:.65}
+.jours{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:var(--rh,56px);gap:6px 5px;touch-action:none}
+.jours.gl-g{animation:glG .3s ease} .jours.gl-d{animation:glD .3s ease}
+@keyframes glG{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
+@keyframes glD{from{opacity:0;transform:translateX(-26px)}to{opacity:1;transform:none}}
+/* chaque jour entier prend la couleur de son poste, en petite dalle mate */
+.jc{--c:var(--carte);--t:var(--ink);position:relative;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:4px 0 5px;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--c) 70%,#fff),var(--c));
+  box-shadow:0 3px 0 color-mix(in srgb,var(--c) 60%,#000),3px 6px 9px rgba(var(--ombre),.38),-3px -3px 7px var(--lumiere);
+  transition:translate .15s ease, box-shadow .15s ease}
+.jc.vide{background:none;box-shadow:none}
+.t-M{--c:var(--c-M);--t:var(--t-M)} .t-A{--c:var(--c-A);--t:var(--t-A)} .t-N{--c:var(--c-N);--t:var(--t-N)}
+.t-R{--c:var(--c-R);--t:var(--t-R)} .t-C{--c:var(--c-C);--t:var(--t-C)} .t-J{--c:var(--c-J);--t:var(--t-J)} .t-S{--c:var(--c-S);--t:var(--t-S)}
+.t-CP{--c:var(--c-CP);--t:var(--t-CP)} .t-RC{--c:var(--c-RC);--t:var(--t-RC)} .t-MA{--c:var(--c-MA);--t:var(--t-MA)}
+.rondj{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:17px;font-weight:900}
+.rondj span{color:var(--t)}
+.jc .lab{font-size:9.5px;font-weight:900;color:var(--t);opacity:.8;letter-spacing:.03em;line-height:1;min-height:10px}
+.jc.auj .rondj{background:linear-gradient(135deg,var(--carteHaut),var(--carte));box-shadow:0 2px 0 var(--tranche),2px 3px 6px rgba(0,0,0,.3)}
+.jc.auj .rondj span{color:var(--indigo)}
+.jc.sel{translate:0 3px;box-shadow:inset 3px 4px 7px rgba(0,0,0,.38),inset -2px -2px 5px rgba(255,255,255,.35)}
+.legende{display:flex;justify-content:space-between;gap:6px;margin:8px 4px 2px;font-size:10.5px;font-weight:800;color:var(--muted)}
+.legende span{white-space:nowrap}
+.legende i{display:inline-block;width:11px;height:5px;border-radius:9px;vertical-align:2px;margin-right:4px;box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
+.legende .sq{height:7px;background:linear-gradient(180deg,var(--saugeHaut),var(--sauge));box-shadow:0 1.5px 0 var(--saugeTranche)}
+/* le jour choisi, comme la liste d'événements sous le mois */
+.jour.compact{padding:10px 14px;gap:8px} .jour.compact .jbas{display:none} .jour.compact .pthumb{width:42px;height:42px;border-radius:11px}
+.jour.mini{padding:10px 14px} .jour.mini .evts,.jour.mini .jbas,.jour.mini .jsous{display:none} .jour.mini .pthumb{width:40px;height:40px;border-radius:11px}
+.jmini{display:none;font-size:13px;font-weight:800;color:var(--muted);margin-top:3px} .jour.mini .jmini{display:block}
+.jour{flex:1;min-height:0;margin-top:18px;border-radius:24px;padding:14px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.jhaut{display:flex;align-items:center;gap:12px}
+.pthumb{position:relative;width:56px;height:56px;flex:none;border-radius:14px;overflow:hidden}
+.jtitre{font-size:19px;font-weight:900;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jhaut > div:nth-child(2){min-width:0}
+.jc.hors{opacity:.32;box-shadow:none}
+.jsous{font-size:13px;font-weight:800;color:var(--muted);margin-top:3px}
+.opt{margin-left:auto}
+.evts{display:flex;flex-direction:column;gap:8px;overflow:auto}
+.evt{display:flex;align-items:center;gap:12px;border-radius:14px;padding:11px 12px}
+.evt i{flex:none;width:5px;height:22px;border-radius:9px;box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
+.evt b{font-size:15px;font-weight:900}
+.evt span{margin-left:auto;font-size:13.5px;font-weight:800;color:var(--muted);white-space:nowrap}
+.jbas{font-size:12.5px;font-weight:700;color:var(--muted);margin-top:auto}
+/* éléments partagés avec la fiche du jour */
+.niche svg{position:absolute;inset:-6%;width:112%;height:112%;display:block}
+.niche::after,.grande .niche::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 2px 3px 4px rgba(0,0,0,.5),inset -1px -2px 2px rgba(255,255,255,.45)}
+.bande{display:block;width:72%;height:4px;border-radius:9px;box-shadow:inset 0 1.5px 2px rgba(0,0,0,.35)}
+.b-M{background:var(--c-M)} .b-A{background:var(--c-A)} .b-N{background:var(--c-N)} .b-R{background:var(--c-R)} .b-C{background:var(--c-C)} .b-J{background:var(--c-J)} .b-S{background:var(--c-S)} .b-CP{background:var(--c-CP)} .b-RC{background:var(--c-RC)} .b-MA{background:var(--c-MA)}
+.couls{display:flex;flex-direction:column;gap:12px}
+.coul{display:flex;align-items:center;justify-content:space-between;font-size:15px;font-weight:800}
+.pastille{width:42px;height:42px;border-radius:50%;padding:4px;display:grid;place-items:center}
+.pastille input{-webkit-appearance:none;appearance:none;width:34px;height:34px;border:0;border-radius:50%;padding:0;background:none;cursor:pointer}
+.pastille input::-webkit-color-swatch-wrapper{padding:0}
+.pastille input::-webkit-color-swatch{border:0;border-radius:50%;box-shadow:inset 0 2px 3px rgba(0,0,0,.35)}
+.pastille input::-moz-color-swatch{border:0;border-radius:50%}
+
+/* Fiche du jour */
+.voile{position:fixed;inset:0;background:rgba(80,72,64,.28);opacity:0;pointer-events:none;transition:opacity .3s;z-index:20}
+.voile.on{opacity:1;pointer-events:auto}
+.fiche{position:fixed;left:0;right:0;bottom:0;z-index:21;transition-timing-function:cubic-bezier(.32,.72,0,1)!important;max-width:480px;margin:0 auto;border-radius:32px 32px 0 0;background:var(--fond);
+  padding:12px 18px calc(24px + env(safe-area-inset-bottom,0px));transform:translateY(105%);transition:transform .45s cubic-bezier(.2,.9,.25,1)}
+.fiche.on{transform:none}
+.poignee{width:44px;height:5px;border-radius:9px;margin:0 auto 16px;background:var(--tranche)}
+.grande{border-radius:22px;padding:10px}
+.grande .niche{position:relative;height:200px;border-radius:15px 15px 10px 10px;overflow:hidden;touch-action:pan-y}
+.grande .niche svg{position:absolute;inset:-5%;width:110%;height:110%}
+.grande .bas{display:flex;align-items:center;justify-content:space-between;padding:14px 8px 6px}
+.grande h3{margin:0;font-size:26px;font-weight:900}
+.grande .sous{margin:3px 0 0;font-size:14px;font-weight:700;color:var(--muted)}
+.grande .num{font-size:44px;font-weight:900;line-height:1}
+.grande .bande{width:100%;height:7px;margin:4px 0 4px}
+.drapeau{display:inline-block;margin:14px 4px 0;font-size:13px;font-weight:800;color:var(--rouge)}
+.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+.action{border-radius:16px;padding:14px 4px;font-size:14px;font-weight:800;color:var(--muted)}
+.ly{transition:translate .25s ease-out}
+@keyframes bal{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}
+.balance{transform-box:view-box;animation:bal 3.4s ease-in-out infinite}
+
+/* Rapport */
+.titre{margin:8px 4px 18px;font-size:32px;font-weight:900;line-height:1}
+.bloc{border-radius:24px;padding:20px 18px;margin-bottom:22px}
+.bloc h2{margin:0 0 4px;font-size:15px;font-weight:800;color:var(--muted)}
+.net{font-size:52px;font-weight:900;letter-spacing:-.02em;line-height:1.05}
+.lignes{margin-top:14px}
+.ligne{display:flex;justify-content:space-between;font-size:14.5px;font-weight:700;padding:7px 0}
+.ligne .k{color:var(--muted)}
+.alerte{margin-top:12px;border-radius:14px;padding:11px 14px;font-size:13.5px;font-weight:800;color:var(--corail)}
+.annee{display:grid;grid-template-columns:repeat(12,1fr);gap:6px;align-items:end;height:130px;margin-top:14px}
+.col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;height:100%}
+.tube{width:100%;border-radius:8px;height:0;transition:height .9s cubic-bezier(.2,.9,.25,1);
+  background:linear-gradient(90deg,var(--carteHaut),var(--carte) 60%,#d9d5d0);box-shadow:0 3px 0 var(--tranche),3px 5px 8px rgba(var(--ombre),.4)}
+.tube.ce{background:linear-gradient(90deg,#6c70b8,var(--indigo) 60%,#3c4082);box-shadow:0 3px 0 #33366e,3px 5px 8px rgba(var(--ombre),.45)}
+.tube.futur{background:var(--carte);box-shadow:inset 2px 3px 5px rgba(var(--ombre),.5),inset -2px -2px 4px var(--lumiere)}
+.col small{font-size:10px;font-weight:800;color:var(--muted)}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}
+.duo b{display:block;font-size:22px;font-weight:900}
+.duo span{font-size:12.5px;font-weight:700;color:var(--muted)}
+.capsule{display:flex;height:22px;border-radius:99px;overflow:hidden;margin:14px 0 16px;
+  box-shadow:0 4px 0 var(--tranche),5px 8px 12px rgba(var(--ombre),.4)}
+.seg{height:100%;position:relative;background-image:linear-gradient(180deg,rgba(255,255,255,.28),rgba(0,0,0,.12))}
+.seg+.seg{box-shadow:inset 2px 0 1px rgba(0,0,0,.35)}
+.det .ligne i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:0}
+.compteurs{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.cpt{border-radius:18px;padding:14px 6px;text-align:center}
+.cpt b{display:block;font-size:26px;font-weight:900;line-height:1}
+.cpt span{display:block;margin-top:6px;font-size:12.5px;font-weight:800;color:var(--muted)}
+
+/* Profil */
+.champ{border-radius:22px;padding:16px 16px 18px;margin-bottom:18px}
+.champ .k{font-size:14px;font-weight:800;color:var(--muted);margin-bottom:12px}
+.equipes{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.eq{aspect-ratio:1;border-radius:14px;font-size:20px;font-weight:900;color:var(--muted)}
+.eq.sel{transform:translateY(4px);color:var(--indigo);box-shadow:inset 4px 5px 9px rgba(var(--ombre),.45),inset -4px -4px 8px var(--lumiere)}
+.saisie{width:100%;border:0;border-radius:14px;padding:14px;font:inherit;font-size:17px;font-weight:800;color:var(--ink)}
+.saisie:focus{outline:2px solid var(--indigo)}
+.valider{width:100%;border-radius:18px;padding:17px;font-size:16px;font-weight:900;margin-top:6px}
+.aide{font-size:12.5px;font-weight:700;color:var(--muted);margin:16px 6px 0;line-height:1.45}
+
+/* Onglets */
+.onglets{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--fond);padding:10px 16px calc(14px + env(safe-area-inset-bottom,0px))}
+.onglets-in{max-width:448px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.onglet{border-radius:18px;padding:10px 0 9px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;font-weight:800;color:var(--muted)}
+.onglet svg{width:22px;height:22px;stroke:currentColor;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.onglet.sel{transform:translateY(4px);color:var(--indigo);box-shadow:inset 4px 5px 9px rgba(var(--ombre),.45),inset -4px -4px 8px var(--lumiere)}
+
+/* Premier lancement */
+.accueil{position:fixed;inset:0;z-index:40;background:var(--fond);display:flex;flex-direction:column;justify-content:center;padding:30px 24px;transition:opacity .4s}
+.accueil.off{opacity:0;pointer-events:none}
+.accueil h2{font-size:36px;font-weight:900;margin:0 0 10px;line-height:1.05}
+.accueil p{color:var(--muted);font-weight:700;margin:0 0 30px;font-size:16px;line-height:1.45;max-width:30ch}
+
+.toast{position:fixed;left:50%;bottom:calc(104px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;z-index:50;
+  padding:12px 18px;border-radius:14px;font-size:14px;font-weight:800;transition:all .3s;pointer-events:none}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion: reduce){*{animation-duration:.001s!important;transition-duration:.001s!important}}
+
+/* ====================== ANIMATIONS ======================
+   Règle : tout bouge en transform/opacity uniquement, jamais la mise en page.
+   « backwards » = l’animation ne garde rien à la fin, les styles normaux reprennent la main. */
+.jours{position:relative}
+#curseur{position:absolute;left:0;top:0;z-index:3;pointer-events:none;border-radius:12px;opacity:0;transition:opacity .25s ease;will-change:transform;
+  box-shadow:inset 3px 4px 8px rgba(0,0,0,.42),inset -2px -3px 6px rgba(255,255,255,.4),0 0 0 2.5px rgba(255,255,255,.95),0 0 0 4px rgba(var(--ombre),.25)}
+.jc.sel{translate:0 2px;box-shadow:0 1px 0 color-mix(in srgb,var(--c) 60%,#000)}
+/* poussières des scènes : flou = profondeur de champ (les grosses floues devant, les fines nettes au loin) */
+.s-pous{animation:flotte var(--du) ease-in-out var(--de) infinite;opacity:0}
+@keyframes flotte{0%{transform:translate(0,0);opacity:0}18%{opacity:var(--o)}82%{opacity:var(--o)}100%{transform:translate(var(--dx),var(--dy));opacity:0}}
+.valider .ok{display:inline-flex;align-items:center;gap:8px}
+.valider svg{width:18px;height:18px;stroke:var(--vert);stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:24;animation:trace .5s cubic-bezier(.4,0,.2,1) .05s backwards}
+
+/* jours : arrivée en cascade, dans le sens du glissement */
+.jc{transition:translate .2s ease, box-shadow .2s ease}
+.jc.arr{animation:arrive .55s cubic-bezier(.2,.9,.25,1.15) backwards}
+.jc.arr-g{animation:arrG .5s cubic-bezier(.2,.9,.25,1.1) backwards}
+.jc.arr-d{animation:arrD .5s cubic-bezier(.2,.9,.25,1.1) backwards}
+@keyframes arrive{from{opacity:0;transform:translateY(-16px) scale(.85)}}
+@keyframes arrG{from{opacity:0;transform:perspective(420px) translateX(20px) rotateY(-32deg) scale(.9)}}
+@keyframes arrD{from{opacity:0;transform:perspective(420px) translateX(-20px) rotateY(32deg) scale(.9)}}
+
+/* titre du mois : les lettres basculent une à une */
+.moisTitre span{display:inline-block;animation:lettre .55s cubic-bezier(.2,.9,.25,1.25) backwards}
+@keyframes lettre{from{opacity:0;transform:translateY(.45em) rotateX(75deg)}}
+
+/* aujourd’hui : une onde douce pour le retrouver d’un coup d’œil */
+.jc.auj .rondj{position:relative}
+.jc.auj .rondj::after{content:"";position:absolute;inset:-1px;border-radius:50%;pointer-events:none;animation:pouls 2.8s ease-out infinite}
+@keyframes pouls{0%{box-shadow:0 0 0 0 rgba(255,255,255,.75)}70%,100%{box-shadow:0 0 0 9px rgba(255,255,255,0)}}
+
+/* détail du jour : le contenu se repose à chaque changement */
+.maj{animation:maj .5s cubic-bezier(.2,.9,.25,1) backwards}
+@keyframes maj{from{opacity:0;transform:translateY(8px)}}
+.maj .ly{animation:monte .8s cubic-bezier(.2,.9,.25,1) backwards}
+.maj .ly[data-d="2"]{animation-delay:.02s} .maj .ly[data-d="4"]{animation-delay:.08s}
+.maj .ly[data-d="7"]{animation-delay:.14s} .maj .ly[data-d="11"]{animation-delay:.2s}
+@keyframes monte{from{opacity:0;transform:translateY(14px)}}
+.legende span{transition:color .3s ease}
+.legende span.act{color:var(--ink)}
+.legende span.act i{animation:pastL .6s cubic-bezier(.2,.9,.3,1.4)}
+@keyframes pastL{from{transform:scale(1.9)}}
+
+/* dessins des scènes */
+.s-lever{transform-box:fill-box;transform-origin:center;animation:lever 3.2s cubic-bezier(.2,.8,.3,1) backwards}
+@keyframes lever{from{transform:translateY(10px);opacity:.4}}
+.s-halo{transform-box:fill-box;transform-origin:center;animation:halo 4.2s ease-in-out infinite}
+/* le halo de la lune reste discret */
+.s-halo.faible{animation-name:halo2}
+@keyframes halo2{0%,100%{opacity:.06;transform:scale(1)}50%{opacity:.18;transform:scale(1.2)}}
+.drapeau[hidden]{display:none}
+@keyframes halo{0%,100%{opacity:.22;transform:scale(1)}50%{opacity:.55;transform:scale(1.28)}}
+.s-nuage{animation:nuage 26s linear infinite}
+@keyframes nuage{from{transform:translateX(-30px)}to{transform:translateX(125px)}}
+.s-oiseau{animation:vol 18s linear infinite}
+.s-oiseau path{transform-box:fill-box;transform-origin:center;animation:aile .5s ease-in-out infinite alternate}
+@keyframes vol{from{transform:translate(-20px,4px)}to{transform:translate(125px,-6px)}}
+@keyframes aile{to{transform:scaleY(.35)}}
+.s-etoile{transform-box:fill-box;transform-origin:center;animation:scint 2.6s ease-in-out infinite}
+@keyframes scint{0%,100%{opacity:.2;transform:scale(.55)}50%{opacity:1;transform:scale(1.25)}}
+.s-filante{animation:filante 7s ease-in infinite}
+@keyframes filante{0%,80%{opacity:0;transform:translate(0,0)}84%{opacity:1}100%{opacity:0;transform:translate(-40px,17px)}}
+.s-feuille{transform-box:fill-box;transform-origin:center;animation:feuille 6.5s linear infinite}
+@keyframes feuille{0%{transform:translate(0,-6px) rotate(0);opacity:0}12%{opacity:1}100%{transform:translate(-16px,74px) rotate(320deg);opacity:0}}
+.s-aiguille{transform-box:view-box;animation:tourne 5s linear infinite}
+@keyframes tourne{to{transform:rotate(360deg)}}
+
+/* onglets : l’icône se dessine quand on la choisit */
+.onglet.sel svg>*{stroke-dasharray:70;animation:trace .75s cubic-bezier(.4,0,.2,1) backwards}
+@keyframes trace{from{stroke-dashoffset:70}}
+
+/* entrée des écrans : les plaques se posent l’une après l’autre */
+.view.on > *{animation:pose2 .55s cubic-bezier(.2,.9,.25,1) backwards}
+.view.on > *:nth-child(2){animation-delay:.05s} .view.on > *:nth-child(3){animation-delay:.1s}
+.view.on > *:nth-child(4){animation-delay:.15s} .view.on > *:nth-child(5){animation-delay:.2s}
+.view.on > *:nth-child(6){animation-delay:.25s} .view.on > *:nth-child(7){animation-delay:.3s}
+@keyframes pose2{from{opacity:0;transform:translateY(14px) scale(.98)}}
+.view.on .cpt{animation:pop .55s cubic-bezier(.2,.9,.3,1.35) backwards}
+.view.on .cpt:nth-child(1){animation-delay:.3s} .view.on .cpt:nth-child(2){animation-delay:.36s}
+.view.on .cpt:nth-child(3){animation-delay:.42s} .view.on .cpt:nth-child(4){animation-delay:.48s}
+@keyframes pop{from{opacity:0;transform:scale(.6)}}
+.seg{width:0;transition:width .9s cubic-bezier(.3,1.25,.5,1)}
+.tube{transform-origin:50% 100%}
+.accueil .eq{animation:pop .5s cubic-bezier(.2,.9,.3,1.35) backwards}
+.accueil .eq:nth-child(2){animation-delay:.06s} .accueil .eq:nth-child(3){animation-delay:.12s}
+.accueil .eq:nth-child(4){animation-delay:.18s} .accueil .eq:nth-child(5){animation-delay:.24s}
+
+@media (prefers-reduced-motion: reduce){ .s-halo,.s-nuage,.s-oiseau,.s-etoile,.s-filante,.s-feuille,.s-aiguille,.jc.auj .rondj::after{animation:none} }
+
+/* ===== fiche du jour : choix du type de jour ===== */
+.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}
+.action.on{transform:translateY(4px);color:var(--indigo);box-shadow:inset 4px 5px 9px rgba(var(--ombre),.45),inset -4px -4px 8px var(--lumiere)}
+.choix{display:none;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+.choix.on{display:grid;animation:maj .35s cubic-bezier(.2,.9,.25,1) backwards}
+.choix button{border-radius:14px;padding:12px 0;font-size:14px;font-weight:900;color:#fff;text-shadow:0 -1px 0 rgba(0,0,0,.25)}
+.choix .q{font-size:12.5px;font-weight:800;color:var(--muted);grid-column:1/-1;margin:2px 4px -2px}
+/* ===== profil : infos de paye ===== */
+.grille2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grille2 label{display:flex;flex-direction:column;gap:6px;font-size:12.5px;font-weight:800;color:var(--muted)}
+.grille2 .saisie{padding:12px;font-size:16px}
+.vide{font-size:14px;font-weight:800;color:var(--corail);margin-top:10px;line-height:1.4}
+.annee .col{cursor:pointer}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="creux" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+    <feOffset in="SourceAlpha" dx="1.1" dy="1.4" result="d1"/>
+    <feGaussianBlur in="d1" stdDeviation=".8" result="f1"/>
+    <feComposite in="SourceAlpha" in2="f1" operator="out" result="haut"/>
+    <feFlood flood-color="#000" flood-opacity=".9"/>
+    <feComposite in2="haut" operator="in" result="ombre"/>
+    <feOffset in="SourceAlpha" dx="-.9" dy="-1.1" result="d2"/>
+    <feGaussianBlur in="d2" stdDeviation=".7" result="f2"/>
+    <feComposite in="SourceAlpha" in2="f2" operator="out" result="bas"/>
+    <feFlood flood-color="#fff" flood-opacity=".5"/>
+    <feComposite in2="bas" operator="in" result="lum"/>
+    <feOffset in="SourceAlpha" dx=".8" dy="1.1" result="d3"/>
+    <feGaussianBlur in="d3" stdDeviation=".5" result="f3"/>
+    <feComposite in="f3" in2="SourceAlpha" operator="out" result="bord"/>
+    <feFlood flood-color="#fff"/>
+    <feComposite in2="bord" operator="in" result="arete"/>
+    <feMerge><feMergeNode in="arete"/><feMergeNode in="SourceGraphic"/><feMergeNode in="ombre"/><feMergeNode in="lum"/></feMerge>
+  </filter>
+</svg>
+<div class="app fixe">
+
+  <section class="view on" id="v-plan">
+    <div class="barre">
+      <button class="lien" onclick="toast('Vue de l’année : bientôt')"><svg viewBox="0 0 16 16"><path d="M10 3 5 8l5 5"/></svg><span id="annee"></span></button>
+      <div class="pills">
+        <button class="pill plaque" id="eqLabel" onclick="va('prof')"></button>
+        <button class="pill plaque ind" onclick="allerAuj()">Aujourd’hui</button>
+      </div>
+    </div>
+    <h1 class="moisTitre" id="mois"></h1>
+    <div class="cal dalle">
+      <div class="semaine"><span class="grave">L</span><span class="grave">M</span><span class="grave">M</span><span class="grave">J</span><span class="grave">V</span><span class="grave we">S</span><span class="grave we">D</span></div>
+      <div class="jours" id="jours"></div>
+      <div class="legende">
+        <span><i class="b-M"></i>Matin</span><span><i class="b-A"></i>Après-midi</span><span><i class="b-N"></i>Nuit</span>
+        <span><i class="b-R"></i>Repos</span><span><i class="b-C"></i>Remonte</span><span><i class="b-J"></i>À fixer</span>
+      </div>
+    </div>
+    <div class="jour dalle">
+      <div class="jhaut">
+        <div class="pthumb niche" id="pThumb"></div>
+        <div><div class="jtitre" id="jTitre"></div><div class="jsous" id="jSous"></div><div class="jmini" id="jMini"></div></div>
+        <button class="pill plaque opt" onclick="optionsJour()">Options</button>
+      </div>
+      <div class="evts" id="evts"></div>
+      <div class="jbas" id="jBas"></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-rap">
+    <h1 class="titre">Rapport</h1>
+    <div class="bloc plaque">
+      <h2 id="payeTitre">Paye</h2>
+      <div class="net grave" id="net">0 €</div>
+      <div class="lignes" id="payeLignes"></div>
+      <div class="vide" id="payeVide" hidden>Remplis ta paye dans Profil pour voir ton vrai net.</div>
+    </div>
+    <div class="bloc plaque">
+      <h2 id="anneeTitre">Ton année</h2>
+      <div class="annee" id="annee12"></div>
+      <div class="duo"><div><b id="moyenne">0 €</b><span>moyenne par mois</span></div><div><b id="supAn" style="color:var(--rouge)">0 €</b><span id="supAnTxt">gagnés en jours sup</span></div></div>
+    </div>
+    <div class="bloc plaque det">
+      <h2>Détail en net</h2>
+      <div class="capsule" id="capsule"></div>
+      <div id="detail"></div>
+      <div class="ligne" style="margin-top:6px"><span class="k">Prélèvement à la source (info)</span><span id="impot">0 €</span></div>
+    </div>
+    <div class="compteurs">
+      <div class="cpt plaque"><b class="grave" id="cCP">0</b><span>CP</span></div>
+      <div class="cpt plaque"><b class="grave" id="cCOR">0</b><span id="cCORt">COR</span></div>
+      <div class="cpt plaque"><b class="grave" id="cRC8">0</b><span>RC8</span></div>
+      <div class="cpt plaque"><b class="grave" id="cCET">0</b><span>CET</span></div>
+    </div>
+    <p class="aide" id="corAide"></p>
+  </section>
+
+  <section class="view" id="v-prof">
+    <h1 class="titre">Profil</h1>
+    <div class="champ plaque"><div class="k">Ton équipe</div><div class="equipes" id="eqProf"></div></div>
+    <div class="champ dalle"><div class="k">Couleurs du calendrier</div><div class="couls" id="couls"></div>
+      <button class="pill plaque" style="margin-top:16px" onclick="resetCouleurs()">Couleurs d’origine</button></div>
+    <div class="champ dalle"><div class="k">Ta paye (en brut, sur ta fiche de paye)</div>
+      <div class="grille2">
+        <label>Salaire de base<input class="saisie creux" data-p="base" inputmode="decimal" placeholder="0"></label>
+        <label>Prime d’ancienneté<input class="saisie creux" data-p="anc" inputmode="decimal" placeholder="0"></label>
+        <label>Taux horaire<input class="saisie creux" data-p="taux" inputmode="decimal" placeholder="0"></label>
+        <label>Prime de vacances<input class="saisie creux" data-p="vac" inputmode="decimal" placeholder="0"></label>
+        <label>Date d’entrée<input class="saisie creux" data-p="entree" type="month"></label>
+      </div></div>
+    <div class="champ dalle"><div class="k">Tes compteurs (dernière fiche de paye)</div>
+      <div class="grille2">
+        <label>CP restants<input class="saisie creux" data-p="cp" inputmode="decimal" placeholder="0"></label>
+        <label>COR<input class="saisie creux" data-p="cor" inputmode="decimal" placeholder="0"></label>
+        <label>RC8<input class="saisie creux" data-p="rc8" inputmode="decimal" placeholder="0"></label>
+        <label>CET<input class="saisie creux" data-p="cet" inputmode="decimal" placeholder="0"></label>
+        <label>À la date du<input class="saisie creux" data-p="soldes" type="date"></label>
+      </div></div>
+    <button class="valider plaque" onclick="enregistreProfil(this)">Enregistrer</button>
+    <p class="aide">Bientôt, ces cases se rempliront toutes seules en important ta fiche de paye. Tes infos restent sur ton téléphone : personne d’autre ne les voit.</p>
+  </section>
+</div>
+
+<nav class="onglets"><div class="onglets-in">
+  <button class="onglet plaque sel" data-v="plan" onclick="va('plan')"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Planning</button>
+  <button class="onglet plaque" data-v="rap" onclick="va('rap')"><svg viewBox="0 0 24 24"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>Rapport</button>
+  <button class="onglet plaque" data-v="prof" onclick="va('prof')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c1.3-3.8 4.2-5.5 7.5-5.5s6.2 1.7 7.5 5.5"/></svg>Profil</button>
+</div></nav>
+
+<div class="voile" id="voile" onclick="fermeFiche()"></div>
+<div class="fiche" id="fiche">
+  <div class="poignee"></div>
+  <div class="grande plaque">
+    <div class="niche" id="ficheNiche"></div>
+    <div class="bas">
+      <div><h3 id="ficheTitre"></h3><p class="sous" id="ficheSous"></p></div>
+      <div class="num grave" id="ficheNum"></div>
+    </div>
+    <span class="bande" id="ficheBande"></span>
+  </div>
+  <div class="drapeau" id="ficheSup" hidden>Jour sup · poste majoré</div>
+  <div class="actions" id="actions">
+    <button class="action plaque" data-a="conge">Congé</button>
+    <button class="action plaque" data-a="rc">Récup</button>
+    <button class="action plaque" data-a="maladie">Maladie</button>
+    <button class="action plaque" data-a="sup">Jour sup</button>
+    <button class="action plaque" data-a="poste">Autre poste</button>
+    <button class="action plaque" data-a="prevu">Comme prévu</button>
+  </div>
+  <div class="choix" id="choix"></div>
+</div>
+
+<div class="accueil" id="accueil">
+  <h2>Bienvenue dans Mon Planning</h2>
+  <p>Choisis ton équipe : ton calendrier se cale tout seul sur ton cycle.</p>
+  <div class="equipes" id="eqAccueil" style="max-width:400px"></div>
+</div>
+<div class="toast plaque" id="toast"></div>
+
+<script>
+const TEST = location.pathname.includes("/test/");
+const K = nom => (TEST ? "mpt-" : "mp-") + nom;
+/* Cycle réel de 35 jours (5x8) — commence toujours un mardi
+   25 jours de postes : M-M-A-A-N-N-N-R-R-M-M-A-A-A-N-N-R-R-M-M-M-A-A-N-N (fin le vendredi de nuit)
+   puis 10 jours : samedi repos, remonte du dimanche au dimanche, lundi repos, reprise le mardi.
+   Dans la remonte : le mardi (et le mercredi, une remonte sur deux) est travaillé, poste fixé par le chef ; rien en juillet-août. */
+const SEQ = "MMAANNNRRMMAAANNRRMMMAANN";
+const ORDRE = [3,2,5,4,1];                 // ordre du roulement, une semaine d’écart entre chaque équipe
+const DEPART1 = new Date(2026, 9, 20, 12); // équipe 1 : cycle commencé le mardi 20 octobre 2026 (29-30 oct = 2 matins)
+const NOM = {M:"Matin",A:"Après-midi",N:"Nuit",R:"Repos",C:"Remonte",J:"Poste à fixer",S:"Jour sup",CP:"Congé payé",RC:"Récup",MA:"Maladie"};
+const HEURES = {M:"4h – 12h",A:"12h – 20h",N:"20h – 4h",R:"",C:"",J:"fixé la semaine d’avant",S:"",CP:"",RC:"",MA:""};
+const LAB = {M:"M",A:"AM",N:"N",R:"",C:"",J:"J",S:"HS",CP:"CP",RC:"RC",MA:"MA"};
+const travaille = p => p==="M"||p==="A"||p==="N"||p==="J"||p==="S";
+const MOIS = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+const JOURS = ["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
+
+let equipe = 1;
+try { const t = parseInt(localStorage.getItem(K("equipe"))); if (t>=1 && t<=5) equipe = t; } catch(e){}
+const AUJ = (()=>{ const d=new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12); })();
+let vA = AUJ.getFullYear(), vM = AUJ.getMonth();
+
+/* le cycle seul : poste prévu, rang dans le cycle (0 = premier matin, un mardi), numéro du cycle */
+function cycle(date){
+  const depart = new Date(DEPART1.getTime() + (ORDRE.indexOf(equipe) - 4) * 7 * 864e5);
+  const n = Math.round((date - depart)/864e5);
+  const i = ((n % 35) + 35) % 35, k = Math.floor(n / 35);
+  if (i < 25) return { p:SEQ[i], rem:false, i, k };
+  const r = i - 25;                                    // 0 = samedi … 9 = lundi
+  if (r === 0 || r === 9) return { p:"R", rem:false, i, k };
+  const ete = date.getMonth() === 6 || date.getMonth() === 7;
+  const nbJ = ete ? 0 : (((k % 2) + 2) % 2 === 0 ? 1 : 2); // 1 puis 2 en alternance
+  if ((r === 3 && nbJ >= 1) || (r === 4 && nbJ === 2)) return { p:"J", rem:true, i, k };
+  return { p:"C", rem:true, i, k };
+}
+/* jours modifiés à la main (congé, récup, maladie, jour sup, autre poste), gardés sur le téléphone */
+const cle = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+let EV = {}; try { EV = JSON.parse(localStorage.getItem(K("jours")) || "{}"); } catch(e){}
+const sauveEV = () => { try { localStorage.setItem(K("jours"), JSON.stringify(EV)); } catch(e){} };
+/* le jour tel qu’il s’affiche : p = type (couleur), poste = M/A/N/R/J réellement fait ou prévu, g = genre */
+function jour(date){
+  const c = cycle(date), e = EV[cle(date)];
+  const prevu = c.p === "C" ? "R" : c.p;
+  if (e){
+    if (e.g === "conge")   return { p:"CP", poste:prevu, g:"conge",   rem:c.rem, sup:false, c };
+    if (e.g === "rc")      return { p:"RC", poste:prevu, g:"rc",      rem:c.rem, sup:false, c };
+    if (e.g === "maladie") return { p:"MA", poste:prevu, g:"maladie", rem:c.rem, sup:false, c };
+    if (e.g === "sup")     return { p:"S",  poste:e.p,   g:"sup",     rem:c.rem, sup:true,  c };
+    if (e.g === "poste"){
+      if (e.p === "R") return { p: c.rem ? "C" : "R", poste:"R", g:"cycle", rem:c.rem, sup:false, c };
+      if (c.rem && c.p !== "J") return { p:"S", poste:e.p, g:"sup", rem:true, sup:true, c };   // jour travaillé en remonte = jour sup
+      return { p:e.p, poste:e.p, g: c.rem ? "patron" : "cycle", rem:c.rem, sup:false, c };
+    }
+  }
+  return { p:c.p, poste:c.p === "C" ? "R" : c.p, g: c.p === "J" ? "patron" : "cycle", rem:c.rem, sup:false, c };
+}
+
+/* ===== Paye : les règles retrouvées sur les bulletins (les mêmes que l’app Mac) =====
+   Bulletin du mois M (versé fin M) = fixe du mois M + variables des jours du mois M − 1.
+   Par poste : primes du four, transport (non soumis). Nuit : prime de nuit, paniers. Dimanche/férié : prime.
+   Jours sup : payés avec le bulletin qui suit le DERNIER jour sup du cycle, + majoration 25 % / 50 % au-delà de 175 h sur le cycle. */
+const REGLES = { tNuit:2.429, tDim:15.405, tFour:1.586, panier:4.09, panierNuit:7.50, transport:2.49, plusConge:80,
+  heuresPoste:7.9, seuilCycle:175, plafond25:40, partNet:.80, tauxImpot:.02, partImposable:.925, seuilCOR:1620 };
+let PROFIL = { base:0, anc:0, taux:0, vac:0, entree:"", cp:0, cor:0, rc8:0, cet:0, soldes:"" };
+try { Object.assign(PROFIL, JSON.parse(localStorage.getItem(K("profil")) || "{}")); } catch(e){}
+const nb = v => { const x = parseFloat(String(v ?? "").replace(/\s/g,"").replace(",", ".")); return isFinite(x) ? x : 0; };
+const ferie = d => !!nomFerie(d);
+function nomFerie(d){
+  const a = d.getFullYear(), m = d.getMonth()+1, j = d.getDate();
+  const fixes = {"1-1":"Jour de l’an","5-1":"Fête du travail","5-8":"Victoire 1945","7-14":"Fête nationale","8-15":"Assomption","11-1":"Toussaint","11-11":"Armistice","12-25":"Noël"};
+  if (fixes[m+"-"+j]) return fixes[m+"-"+j];
+  const a1=a%19,b=Math.floor(a/100),c=a%100,dd=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
+        hh=(19*a1+b-dd-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-hh-k)%7,mm=Math.floor((a1+11*hh+22*l)/451),
+        mo=Math.floor((hh+l-7*mm+114)/31), jo=((hh+l-7*mm+114)%31)+1;
+  const paques = new Date(a, mo-1, jo, 12), ec = Math.round((d - paques)/864e5);
+  return ec === 1 ? "Lundi de Pâques" : ec === 39 ? "Ascension" : ec === 50 ? "Lundi de Pentecôte" : null;
+}
+const deMois = m => (/^[aeiouéèêâ]/i.test(MOIS[m]) ? "d’" : "de ") + MOIS[m];
+const plusJ = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate()+n, 12);
+
+function paye(annee, mois){                 // mois : 0 à 11 = mois où le bulletin est versé
+  const R = REGLES, taux = nb(PROFIL.taux), base = nb(PROFIL.base), anc = nb(PROFIL.anc);
+  const p = { jours:0, nuits:0, dimanches:0, feries:0, sup:0, conges:0, maladies:0, exceptionnel:0, nomExc:"",
+              fixe:base+anc, four:0, nuit:0, dimanche:0, ferie:0, majSup:0, nonSoumis:0 };
+  if (mois === 5){ p.exceptionnel = nb(PROFIL.vac); p.nomExc = "Prime de vacances"; }
+  if (mois === 11){ p.exceptionnel = base + anc; p.nomExc = "13e mois"; }
+  const debut = new Date(annee, mois-1, 1, 12), m = debut.getMonth();
+  p.moisTravail = debut;
+  for (let d = debut; d.getMonth() === m; d = plusJ(d, 1)){
+    const j = jour(d), fe = ferie(d), dim = d.getDay() === 0;
+    if (j.g === "conge" || j.g === "rc"){
+      p.conges++; if (j.g === "conge") p.fixe += R.plusConge;
+      if (j.poste === "N") p.nuit += 8*R.tNuit + R.panier;
+      if (fe) p.ferie += 8*R.tDim; else if (dim) p.dimanche += 8*R.tDim;
+    } else if (j.g === "maladie"){ p.maladies++; }
+    else if (j.poste === "R"){ if (fe) p.ferie += 8*taux; }
+    else {
+      p.jours++; p.four += 8*R.tFour; p.nonSoumis += R.transport;
+      if (j.poste === "N"){ p.nuits++; p.nuit += R.panier; p.nonSoumis += R.panierNuit; if (!j.sup || dim || fe) p.nuit += 8*R.tNuit; }
+      if (fe){ p.feries++; p.ferie += 8*R.tDim + 8*taux; }
+      else if (dim){ p.dimanches++; p.dimanche += 8*R.tDim; }
+    }
+  }
+  // jours sup : les cycles dont le dernier jour sup tombe dans le mois travaillé
+  const vus = new Set();
+  for (let d = debut; d.getMonth() === m; d = plusJ(d, 1)){
+    if (!jour(d).sup) continue;
+    const dc = plusJ(d, -jour(d).c.i); if (vus.has(cle(dc))) continue; vus.add(cle(dc));
+    const j35 = Array.from({length:35}, (_, x) => plusJ(dc, x)), js = j35.filter(x => jour(x).sup);
+    const dernier = js[js.length-1]; if (!dernier || dernier.getMonth() !== m) continue;
+    let hc = 0;
+    for (const x of j35){ const jx = jour(x); if (jx.poste !== "R" && jx.g !== "conge" && jx.g !== "maladie") hc += R.heuresPoste; }
+    for (const x of js){ const jx = jour(x); p.sup++; p.majSup += 8*taux + ((jx.poste === "N" || x.getDay() === 0 || ferie(x)) ? 8*taux*.75 : 0); }
+    const exces = Math.max(0, hc - R.seuilCycle), a = Math.min(exces, R.plafond25), b = Math.max(0, exces - R.plafond25);
+    p.majSup += a*taux*.25 + b*taux*.5;
+  }
+  p.brut = p.fixe + p.exceptionnel + p.four + p.nuit + p.dimanche + p.ferie + p.majSup;
+  p.netAvant = p.brut*R.partNet + p.nonSoumis;
+  p.impot = p.netAvant*R.partImposable*R.tauxImpot;
+  p.net = p.netAvant - p.impot;
+  p.k = p.brut > 0 ? p.net/p.brut : 0;
+  return p;
+}
+/* compteurs : CP restants, estimation des COR de janvier (heures effectives de l’année − 1 620 h, ÷ 8) */
+function congesRestants(){
+  const depuis = PROFIL.soldes ? new Date(PROFIL.soldes+"T12:00") : null;
+  const poses = Object.entries(EV).filter(([k, e]) => e.g === "conge" && (!depuis || new Date(k+"T12:00") > depuis)).length;
+  return nb(PROFIL.cp) - poses;
+}
+function estimationCOR(annee){
+  let h = 0;
+  for (let d = new Date(annee, 0, 1, 12); d.getFullYear() === annee; d = plusJ(d, 1)){
+    const j = jour(d); if (j.poste !== "R" && j.g !== "conge" && j.g !== "rc" && j.g !== "maladie") h += 7.75;
+  }
+  return { heures:h, cor: Math.max(0, Math.floor((h - REGLES.seuilCOR)/8)) };
+}
+
+/* Couleurs personnalisables (gardées sur le téléphone) */
+const COUL_DEF = {M:"#EE9A84",A:"#EDC14E",N:"#3F4785",R:"#8FBF7F",C:"#A9805A",J:"#8C90CF",S:"#D2473F",CP:"#6FB2C8",RC:"#5FAE9E",MA:"#A79F96"};
+let coul = {...COUL_DEF};
+try { Object.assign(coul, JSON.parse(localStorage.getItem(K("couleurs")) || "{}")); } catch(e){}
+function clair(hex){ const v = parseInt(hex.slice(1),16), r=v>>16&255, g=v>>8&255, b=v&255; return (0.299*r+0.587*g+0.114*b)/255 > .56; }
+function appliqueCouleurs(){
+  const s = document.documentElement.style;
+  for (const k in coul){ s.setProperty("--c-"+k, coul[k]); s.setProperty("--t-"+k, clair(coul[k]) ? "#3A332D" : "#F3EFEA"); }
+}
+
+/* Images : 4 plans (ciel, colline au loin, au milieu, sombre devant) + un seul élément */
+let uid = 0;
+function image(p){
+  const id = "c"+(uid++);
+  const t = {
+    M:{c1:"#F7BBA8",c2:"#EE8E7C",h1:"#CFA0BC",h2:"#AE7FA6",h3:"#7F5B86"},
+    A:{c1:"#F8E08E",c2:"#EFC357",h1:"#E5B868",h2:"#CF9C4B",h3:"#AE7E37"},
+    N:{c1:"#34417F",c2:"#1E2656",h1:"#2B376C",h2:"#222C5A",h3:"#161D41"},
+    R:{c1:"#D2E8C4",c2:"#ADD29C",h1:"#97C485",h2:"#79AD6A",h3:"#5D8F52"},
+    C:{c1:"#E3CDB3",c2:"#C9A580",h1:"#B48B63",h2:"#9A7350",h3:"#7D5A3D"},
+    J:{c1:"#DCDDF2",c2:"#B6B9E1",h1:"#9EA2D3",h2:"#8488C0",h3:"#686CA6"},
+    S:{c1:"#F2B3AC",c2:"#E07A70",h1:"#CF6258",h2:"#B44D44",h3:"#8E3830"}
+  }[p] || {c1:"#ddd",c2:"#ccc",h1:"#bbb",h2:"#aaa",h3:"#999"};
+  let el = "";
+  const nuage = `<g class="s-nuage"><ellipse cx="0" cy="26" rx="10" ry="3.4" fill="#fff" opacity=".5"/><ellipse cx="5" cy="23.6" rx="5.5" ry="3" fill="#fff" opacity=".5"/></g>`;
+  const oiseau = c => `<g class="s-oiseau"><path d="M6 18q1.6-1.8 3.2 0q1.6-1.8 3.2 0" stroke="${c}" stroke-width=".7" fill="none" stroke-linecap="round"/></g>`;
+  if (p==="M") el = `<g class="ly" data-d="2"><g class="s-lever"><circle class="s-halo" cx="64" cy="50" r="19" fill="#FFE9CF"/><circle cx="64" cy="50" r="13" fill="#FCE5C6"/></g>${oiseau("#8E5F7E")}</g>`;
+  if (p==="A") el = `<g class="ly" data-d="2"><circle class="s-halo" cx="70" cy="20" r="14" fill="#FFF6D6"/><circle cx="70" cy="20" r="9" fill="#FFF4CC"/>${nuage}</g>`;
+  if (p==="N") el = `<g class="ly" data-d="2"><path d="M72 11a9 9 0 1 0 6 15a7.5 7.5 0 1 1-6-15z" fill="#F3EACB"/>${[[18,14],[34,24],[48,10],[88,34],[60,30],[12,32],[26,6],[92,14]].map(([x,y],i)=>`<circle class="s-etoile" style="animation-delay:${(i*.37).toFixed(2)}s" cx="${x}" cy="${y}" r=".9" fill="#fff"/>`).join("")}<line class="s-filante" x1="90" y1="7" x2="95" y2="5" stroke="#fff" stroke-width=".8" stroke-linecap="round"/></g>`;
+  if (p==="R") el = `<g class="ly" data-d="2">${nuage}${oiseau("#4E7A44")}</g>`;
+  if (p==="C") el = `<g class="ly" data-d="2">${[[30,"#D9A15E",0],[50,"#C27A3E",2.1],[82,"#E0B070",4.2],[16,"#C9874A",3.1]].map(([x,c,dl])=>`<ellipse class="s-feuille" style="animation-delay:${dl}s" cx="${x}" cy="8" rx="1.8" ry="1" fill="${c}"/>`).join("")}</g>`;
+  if (p==="J") el = `<g class="ly" data-d="2"><circle cx="70" cy="22" r="9" fill="#F4F4FC"/><circle cx="70" cy="22" r="9" fill="none" stroke="#686CA6" stroke-width="1"/><path d="M70 22h4" stroke="#686CA6" stroke-width="1.2" stroke-linecap="round"/><path class="s-aiguille" style="transform-origin:70px 22px" d="M70 22v-6" stroke="#686CA6" stroke-width="1.1" stroke-linecap="round"/><circle cx="70" cy="22" r="1" fill="#686CA6"/></g>`;
+  const maison = (p==="R"||p==="C") ? `<g class="ly" data-d="7">
+      <rect x="56" y="40" width="17" height="11" rx=".8" fill="#F3EEE4"/><path d="M53.5 41 64.5 32 75.5 41z" fill="#E07A47"/>
+      <rect x="62.5" y="44.5" width="4" height="6.5" rx=".5" fill="#B8A894"/><rect x="58" y="43" width="3" height="3" rx=".4" fill="#9EC6D6"/><rect x="68" y="43" width="3" height="3" rx=".4" fill="#9EC6D6"/>
+      <path d="M38 52 42 40 46 52M50 52 54 40 58 52M42 40H54" stroke="#55804A" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+      <g class="balance" style="transform-origin:48px 40px"><path d="M45 40v7.5M51 40v7.5" stroke="#55804A" stroke-width=".6"/><rect x="43.6" y="47" width="8.8" height="1.8" rx=".6" fill="#E07A47"/></g></g>` : "";
+  const pousCoul = {M:"#FFF1DE",A:"#FFF6D2",N:"#C9D2FF",R:"#F7FBEA",C:"#F6E2C4",J:"#FFFFFF",S:"#FFE1DC"}[p] || "#fff";
+  const pousDir = {M:[2,-22],A:[24,-4],N:[6,-10],R:[14,-12],C:[-10,8],J:[0,-12],S:[0,-14]}[p] || [0,-12];
+  const pous = prof => { let s = ""; const n = prof === 2 ? 4 : 6;
+    for (let i = 0; i < n; i++){
+      const x = (i*37 + prof*13) % 100, y = 30 + (i*23 + prof*17) % 45, r = prof === 2 ? 1.7 : .55 + (i%3)*.25;
+      const dx = pousDir[0]*(prof === 2 ? 1.4 : .7) + (i%2 ? 3 : -3), dy = pousDir[1]*(prof === 2 ? 1.4 : .7);
+      s += `<circle class="s-pous" cx="${x}" cy="${y}" r="${r}" fill="${pousCoul}" ${prof === 2 ? `filter="url(#f${id})"` : ""}
+        style="--dx:${dx}px;--dy:${dy}px;--o:${prof === 2 ? .45 : .8};--du:${(prof === 2 ? 7 : 10) + i*1.3}s;--de:${-(i*1.9).toFixed(1)}s"/>`; }
+    return s; };
+  return `<svg viewBox="0 0 100 80" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs><filter id="f${id}" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation=".9"/></filter></defs>
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${t.c1}"/><stop offset="1" stop-color="${t.c2}"/></linearGradient></defs>
+    <rect width="100" height="80" fill="url(#${id})"/>${el}
+    <g class="ly" data-d="4">${pous(1)}<path d="M-10 54Q22 38 52 50T110 44V90H-10Z" fill="${t.h1}"/></g>
+    <g class="ly" data-d="7"><path d="M-10 62Q30 48 62 56T110 54V90H-10Z" fill="${t.h2}"/></g>${maison}
+    <g class="ly" data-d="11"><path d="M-10 70Q26 60 54 68T110 64V90H-10Z" fill="${t.h3}"/>${pous(2)}</g></svg>`;
+}
+function parallaxe(el){
+  const bouge=(x,y)=>{ const r=el.getBoundingClientRect(), dx=((x-r.left)/r.width-.5)*2, dy=((y-r.top)/r.height-.5)*2;
+    el.querySelectorAll(".ly").forEach(l=>l.style.translate=`${-dx*l.dataset.d}px ${-dy*l.dataset.d*.4}px`); };
+  const zero=()=>el.querySelectorAll(".ly").forEach(l=>l.style.translate="0 0");
+  el.addEventListener("pointermove",e=>bouge(e.clientX,e.clientY));
+  el.addEventListener("touchmove",e=>bouge(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
+  el.addEventListener("pointerleave",zero); el.addEventListener("touchend",zero);
+}
+
+/* Mouvement « physique » : de vrais ressorts (raideur + amortissement), comme les animations iOS et Rive.
+   Un ressort peut être interrompu à tout moment et repart de sa vitesse actuelle : rien ne saute. */
+const DOUX = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const RESSORTS = new Set(); let tourneR = false;
+function ressort(etat, cible, raideur, amorti, applique){
+  etat.cible = cible; etat.k = raideur; etat.c = amorti; etat.applique = applique;
+  if (DOUX){ etat.v = 0; etat.x = cible; applique(etat.x, 0); return; }
+  RESSORTS.add(etat);
+  if (!tourneR){ tourneR = true; let t0 = performance.now();
+    const pas = t => { const dt = Math.min(.032, (t - t0)/1000); t0 = t;
+      RESSORTS.forEach(s => {
+        for (let i = 0; i < 4; i++){ const a = s.k*(s.cible - s.x) - s.c*s.v; s.v += a*dt/4; s.x += s.v*dt/4; }
+        if (Math.abs(s.cible - s.x) < .0005 && Math.abs(s.v) < .002){ s.x = s.cible; s.v = 0; RESSORTS.delete(s); }
+        s.applique(s.x, s.v);
+      });
+      if (RESSORTS.size) requestAnimationFrame(pas); else tourneR = false; };
+    requestAnimationFrame(pas); }
+}
+/* appui : la dalle s’enfonce et s’écrase un peu, puis rebondit en se relâchant */
+function appui(el){
+  if (el._p) return; el._p = {x:1, v:0};
+  const ap = x => { const ecrase = (1 - x)*.6; el.style.scale = `${x + ecrase*.25} ${x - ecrase*.25}`; };
+  el.addEventListener("pointerdown", () => ressort(el._p, .9, 700, 30, ap));
+  const lache = () => ressort(el._p, 1, 420, 13, ap);
+  el.addEventListener("pointerup", lache); el.addEventListener("pointercancel", lache); el.addEventListener("pointerleave", lache);
+}
+const vibre = () => { try { navigator.vibrate && navigator.vibrate(6); } catch(e){} };
+const centre = el => { const r = el.getBoundingClientRect(); return [r.left + r.width/2, r.top + r.height/2]; };
+function rejoue(el){ if (!el) return; el.classList.remove("maj"); void el.offsetWidth; el.classList.add("maj"); }
+
+/* le sélecteur : un creux qui glisse d’un jour à l’autre (élément partagé), au lieu d’apparaître d’un coup */
+const CUR = {x:{x:0,v:0}, y:{x:0,v:0}, vis:false};
+function placeCurseur(b, direct){
+  const g = document.getElementById("jours"); let c = document.getElementById("curseur");
+  if (!c){ c = document.createElement("div"); c.id = "curseur"; }
+  if (c.parentNode !== g) g.appendChild(c);
+  if (!b){ c.style.opacity = 0; CUR.vis = false; return; }
+  c.style.width = b.offsetWidth + "px"; c.style.height = b.offsetHeight + "px";
+  const tx = b.offsetLeft, ty = b.offsetTop;
+  const ap = () => {
+    const vx = CUR.x.v, vy = CUR.y.v, s = Math.min(.14, Math.hypot(vx, vy)/4000);
+    const ang = Math.atan2(vy, vx)*180/Math.PI;
+    c.style.transform = `translate(${CUR.x.x}px, ${CUR.y.x}px) rotate(${ang}deg) scale(${1+s}, ${1-s*.7}) rotate(${-ang}deg)`;
+  };
+  if (direct || !CUR.vis){ CUR.x.x = tx; CUR.y.x = ty; CUR.x.v = CUR.y.v = 0; ap(); c.style.opacity = 1; CUR.vis = true; return; }
+  ressort(CUR.x, tx, 260, 22, ap); ressort(CUR.y, ty, 260, 22, ap);
+}
+
+/* Mois façon Calendrier Apple : chaque jour en dalle colorée, chiffre creusé, pastille pour aujourd’hui */
+let choisi = AUJ, nbLignes = 5;
+function afficheMois(sens){
+  const nomMois = MOIS[vM].charAt(0).toUpperCase() + MOIS[vM].slice(1);
+  document.getElementById("mois").innerHTML = [...nomMois].map((l,i)=>`<span style="animation-delay:${i*32}ms">${l}</span>`).join("");
+  document.getElementById("annee").textContent = vA;
+  document.getElementById("eqLabel").textContent = `Équipe ${equipe}`;
+  const g = document.getElementById("jours"); g.innerHTML = "";
+  const lead = (new Date(vA,vM,1,12).getDay()+6)%7, nb = new Date(vA,vM+1,0).getDate();
+  // toujours 6 semaines affichées (avec la fin du mois d’avant et le début du suivant, en pâli) :
+  // la grille a donc exactement la même hauteur chaque mois et rien ne bouge dans la page
+  nbLignes = 6;
+  for (let c=0;c<42;c++){
+    const date = new Date(vA,vM,1-lead+c,12), d = jour(date), j = date.getDate(), hors = date.getMonth()!==vM;
+    const b = document.createElement("button");
+    const lig = Math.floor(c/7), col = c%7;
+    b.className = `jc t-${d.p}` + (hors?" hors":"") + (+date===+AUJ?" auj":"") + (!hors && +date===+choisi?" sel":"")
+      + (sens ? (sens>0?" arr-g":" arr-d") : " arr");
+    b.style.animationDelay = (sens ? ((sens>0?col:6-col)*26 + lig*12) : (lig*45 + col*16)) + "ms";
+    b.innerHTML = `<div class="rondj"><span class="grave">${j}</span></div><span class="lab">${d.p==="S" ? LAB[d.poste]+" · HS" : LAB[d.p]}</span>`;
+    b.setAttribute("aria-label", `${j} ${MOIS[date.getMonth()]}, ${NOM[d.p]}`);
+    appui(b);
+    b.onclick = hors
+      ? () => { choisi = date; const s = c < 7 ? -1 : 1; vA = date.getFullYear(); vM = date.getMonth(); afficheMois(s); affichePanneau(); }
+      : () => choisitJour(b, date, d);
+    g.appendChild(b);
+  }
+
+  ajuste();
+  requestAnimationFrame(() => placeCurseur(g.querySelector(".jc.sel"), true));
+}
+/* hauteur des semaines calculée pour remplir l’écran sans jamais déborder */
+function ajuste(){
+  if (!document.getElementById("v-plan").classList.contains("on")) return;
+  const app = document.querySelector(".app"), cs = getComputedStyle(app);
+  const H = app.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const fixe = document.querySelector(".barre").offsetHeight + 4 + document.getElementById("mois").offsetHeight + 18
+             + document.querySelector(".semaine").offsetHeight + document.querySelector(".legende").offsetHeight + 10
+             + 18 + 5 + 18;
+  // même taille de jour pour TOUS les mois : calculée une seule fois pour qu’un mois de 6 semaines tienne aussi
+  // (plafonnée à la taille de février 2027) ; c’est seulement le détail du jour en bas qui grandit ou se resserre
+  const rh = Math.max(40, Math.min(64, (H - fixe - 66 - 6*5) / 6));
+  const reste = H - fixe - nbLignes*rh - 6*(nbLignes-1);
+  document.getElementById("jours").style.setProperty("--rh", rh.toFixed(1) + "px");
+  const pan = document.querySelector(".jour");
+  pan.classList.toggle("compact", reste < 150 && reste >= 106);
+  pan.classList.toggle("mini", reste < 106);
+}
+window.addEventListener("resize", () => ajuste());
+
+/* 1re touche : le jour s’affiche dessous ; 2e touche (ou « Options ») : la fiche */
+function choisitJour(b, date, d){
+  if (+date === +choisi) { ouvreFiche(date, d); return; }
+  choisi = date;
+  document.querySelectorAll(".jc.sel").forEach(c => c.classList.remove("sel"));
+  b.classList.add("sel");
+  placeCurseur(b); vibre();
+  affichePanneau();
+}
+function optionsJour(){ ouvreFiche(choisi, jour(choisi)); }
+function allerAuj(){
+  const s = (vA*12+vM) < (AUJ.getFullYear()*12+AUJ.getMonth()) ? 1 : -1;
+  const meme = vA===AUJ.getFullYear() && vM===AUJ.getMonth();
+  vA = AUJ.getFullYear(); vM = AUJ.getMonth(); choisi = AUJ;
+  if (meme){ document.querySelectorAll(".jc.sel").forEach(c => c.classList.remove("sel")); affichePanneau(); return finAuj(true); }
+  afficheMois(s); affichePanneau();
+  vibre();
+}
+function finAuj(){
+  const cible = document.querySelector(".jc.auj:not(.hors)"); if (cible){ cible.classList.add("sel"); placeCurseur(cible); }
+  vibre();
+}
+function affichePanneau(){
+  const d = jour(choisi);
+  const img = d.p==="S" ? d.poste : (["CP","RC","MA"].includes(d.p) ? "R" : d.p);
+  document.getElementById("pThumb").innerHTML = image(img);
+  const t = `${JOURS[choisi.getDay()]} ${choisi.getDate()} ${MOIS[choisi.getMonth()]}`;
+  document.getElementById("jTitre").textContent = t.charAt(0).toUpperCase() + t.slice(1);
+  const ecart = Math.round((choisi - AUJ)/864e5);
+  document.getElementById("jSous").textContent = ecart===0 ? "Aujourd’hui" : ecart===1 ? "Demain" : ecart===-1 ? "Hier"
+    : ecart>0 ? `Dans ${ecart} jours` : `Il y a ${-ecart} jours`;
+  const detail = d.p==="S" ? `${NOM[d.poste]} · ${HEURES[d.poste]}` : (HEURES[d.p] || (d.p==="C" ? "heures sup possibles" : d.p==="CP"||d.p==="RC"||d.p==="MA" ? `prévu : ${NOM[d.poste]}` : "toute la journée"));
+  document.getElementById("jMini").textContent = NOM[d.p] + (HEURES[d.p] && d.p!=="J" ? " · " + HEURES[d.p] : "");
+  document.getElementById("evts").innerHTML = `<div class="evt creux"><i class="b-${d.p}"></i><b>${NOM[d.p]}</b><span>${detail}</span></div>`;
+  const tr = travaille(d.p); let k = 1;
+  while (k < 40 && travaille(jour(new Date(choisi.getTime()+k*864e5)).p) === tr) k++;
+  const suite = jour(new Date(choisi.getTime()+k*864e5));
+  ["pThumb","evts","jBas"].forEach(id => rejoue(document.getElementById(id)));
+  rejoue(document.querySelector(".jhaut > div:nth-child(2)"));
+  document.querySelectorAll(".legende span").forEach(s => s.classList.toggle("act", !!s.querySelector(".b-"+d.p)));
+  document.getElementById("jBas").textContent = tr ? `Prochain repos dans ${k} jour${k>1?"s":""}`
+    : `Reprise dans ${k} jour${k>1?"s":""} · ${NOM[suite.p]}`;
+}
+function changeMois(s){ vM+=s; if(vM<0){vM=11;vA--;} if(vM>11){vM=0;vA++;} afficheMois(s); }
+(()=>{ let x0=null, dx=0; const g=document.getElementById("jours");
+  g.addEventListener("touchstart",e=>{ x0=e.touches[0].clientX; dx=0; g.style.transition="none"; },{passive:true});
+  g.addEventListener("touchmove",e=>{ if(x0===null) return; dx=e.touches[0].clientX-x0; g.style.translate=`${dx*.3}px 0`; },{passive:true});
+  g.addEventListener("touchend",()=>{ if(x0===null) return; g.style.transition="translate .3s cubic-bezier(.2,.9,.25,1.2)"; g.style.translate="0 0";
+    if(Math.abs(dx)>60){ changeMois(dx<0?1:-1); vibre(); }
+    x0=null; });
+})();
+
+/* Fiche du jour : la grande carte */
+let ficheDate = null;
+function ouvreFiche(date, d){
+  d = jour(date); ficheDate = date;
+  const img = d.p==="S" ? d.poste : (["CP","RC","MA"].includes(d.p) ? "R" : d.p);
+  const n = document.getElementById("ficheNiche"); n.innerHTML = image(img); parallaxe(n);
+  const h = d.p==="S" ? HEURES[d.poste] : HEURES[d.p];
+  document.getElementById("ficheTitre").textContent = d.p==="S" ? `Jour sup · ${NOM[d.poste]}` : NOM[d.p];
+  document.getElementById("ficheSous").textContent = `${JOURS[date.getDay()]} ${date.getDate()} ${MOIS[date.getMonth()]}${h?" · "+h:""}${nomFerie(date)?" · "+nomFerie(date):""}`;
+  const e = EV[cle(date)];
+  document.querySelectorAll("#actions .action").forEach(b => b.classList.toggle("on", !!e && (b.dataset.a === e.g)));
+  document.getElementById("choix").classList.remove("on");
+  document.getElementById("ficheNum").textContent = date.getDate();
+  document.getElementById("ficheBande").className = `bande b-${d.p}`;
+  document.getElementById("ficheSup").hidden = !d.sup;
+  document.getElementById("voile").classList.add("on"); document.getElementById("fiche").classList.add("on");
+  rejoue(n);
+}
+/* boutons de la fiche : un appui choisit, un second appui sur le même enlève */
+function modifieJour(val){
+  const k = cle(ficheDate);
+  if (val === null) delete EV[k]; else EV[k] = val;
+  sauveEV(); vibre();
+  afficheMois(); affichePanneau(); ouvreFiche(ficheDate);
+}
+function choixPoste(question, genre, postes){
+  const c = document.getElementById("choix");
+  c.innerHTML = `<div class="q">${question}</div>` + postes.map(p => `<button class="plaque" data-p="${p}" style="background:var(--c-${p});color:var(--t-${p})">${p==="R"?"Repos":LAB[p]}</button>`).join("");
+  c.querySelectorAll("button").forEach(b => { appui(b); b.onclick = () => modifieJour({ g:genre, p:b.dataset.p }); });
+  c.classList.remove("on"); void c.offsetWidth; c.classList.add("on");
+}
+document.querySelectorAll("#actions .action").forEach(b => b.addEventListener("click", () => {
+  const a = b.dataset.a, e = EV[cle(ficheDate)];
+  if (a === "prevu") return modifieJour(null);
+  if (e && e.g === a) return modifieJour(null);
+  if (a === "sup") return choixPoste("Jour sup sur quel poste ?", "sup", ["M","A","N"]);
+  if (a === "poste") return choixPoste("Quel poste ce jour-là ?", "poste", ["M","A","N","R"]);
+  modifieJour({ g:a });
+}));
+function fermeFiche(){ document.getElementById("voile").classList.remove("on"); document.getElementById("fiche").classList.remove("on"); }
+(()=>{ let y0=null; const f=document.getElementById("fiche");
+  f.addEventListener("touchstart",e=>y0=e.touches[0].clientY,{passive:true});
+  f.addEventListener("touchend",e=>{ if(y0!==null && e.changedTouches[0].clientY-y0>70) fermeFiche(); y0=null; });
+})();
+
+/* Rapport (chiffres fictifs, sauf COR et RC8) */
+function compte(el, fin, suffixe=" €"){
+  let k=0; const pas=30, tot=28;
+  const t=setInterval(()=>{ k++; const e=1-Math.pow(1-k/tot,3); el.textContent=Math.round(fin*e).toLocaleString("fr-FR")+suffixe; if(k>=tot) clearInterval(t); }, pas);
+}
+let moisRapport = null;
+function afficheRapport(){
+  const annee = AUJ.getFullYear(), mois = moisRapport ?? AUJ.getMonth(), p = paye(annee, mois), k = p.k;
+  const vide = nb(PROFIL.base) === 0;
+  document.getElementById("payeVide").hidden = !vide;
+  document.getElementById("payeTitre").textContent = `Paye de fin ${MOIS[mois]} · travail ${deMois(p.moisTravail.getMonth())}`;
+  compte(document.getElementById("net"), Math.round(p.net));
+  const act = [`${p.jours} jours`, `${p.nuits} nuits`, `${p.dimanches} dimanche${p.dimanches>1?"s":""}`];
+  if (p.feries) act.push(`${p.feries} férié${p.feries>1?"s":""}`);
+  if (p.conges + p.maladies) act.push(`${p.conges+p.maladies} absence${p.conges+p.maladies>1?"s":""}`);
+  const eur = v => Math.round(v).toLocaleString("fr-FR") + " €";
+  document.getElementById("payeLignes").innerHTML =
+    `<div class="ligne"><span class="k">Travail ${deMois(p.moisTravail.getMonth())}</span><span>${act.join(" · ")}</span></div>` +
+    (p.sup ? `<div class="ligne"><span class="k">${p.sup} jour${p.sup>1?"s":""} sup</span><span style="color:var(--rouge)">+${eur(p.majSup*k)}</span></div>` : "") +
+    (p.exceptionnel ? `<div class="ligne"><span class="k">${p.nomExc}</span><span>+${eur(p.exceptionnel*k)}</span></div>` : "");
+  // l’année : chaque barre = le net versé ce mois-là ; touche une barre pour voir ce mois
+  const payes = Array.from({length:12}, (_, i) => paye(annee, i)), nets = payes.map(x => x.net), max = Math.max(1, ...nets), cour = AUJ.getMonth();
+  document.getElementById("anneeTitre").textContent = `Ton année ${annee}`;
+  const a = document.getElementById("annee12");
+  a.innerHTML = nets.map((v,i)=>`<div class="col" data-m="${i}"><div class="tube${i===mois?" ce":""}${i>cour?" futur":""}" style="height:${Math.max(4, v/max*100)}%"></div><small>${MOIS[i][0].toUpperCase()}</small></div>`).join("");
+  a.querySelectorAll(".tube").forEach((t,i)=>{ const e={x:0,v:0}; t.style.transform="scaleY(0)";
+    setTimeout(()=>ressort(e,1,170,11,x=>t.style.transform=`scaleY(${Math.max(0,x)})`), 120+i*55); });
+  a.querySelectorAll(".col").forEach(c => c.onclick = () => { moisRapport = +c.dataset.m; vibre(); afficheRapport(); });
+  const passes = payes.slice(0, cour+1);
+  document.getElementById("moyenne").textContent = eur(passes.reduce((s,x)=>s+x.net,0) / passes.length);
+  const supAn = passes.reduce((s,x)=>s+x.majSup*x.k,0), jSup = passes.reduce((s,x)=>s+x.sup,0);
+  document.getElementById("supAn").textContent = eur(supAn);
+  document.getElementById("supAnTxt").textContent = `gagnés en ${jSup} jour${jSup>1?"s":""} sup`;
+  // détail en net
+  const det = [["Fixe"+(p.conges?" + congés":""), p.fixe*k, "taupe"], [p.nomExc||"Prime", p.exceptionnel*k, "vert"], ["Primes du four", p.four*k, "or"],
+               ["Nuits", p.nuit*k, "indigo"], ["Dimanches", p.dimanche*k, "corail"], ["Fériés", p.ferie*k, "vert"], ["Jours sup", p.majSup*k, "rouge"]].filter(d => d[1] > 0.5);
+  const tot = Math.max(1, det.reduce((s,d)=>s+d[1],0));
+  const cap = document.getElementById("capsule");
+  cap.innerHTML = det.map((d,i)=>`<div class="seg" data-w="${d[1]/tot*100}" style="background-color:var(--${d[2]});transition-delay:${300+i*110}ms"></div>`).join("");
+  setTimeout(()=>cap.querySelectorAll(".seg").forEach(s=>s.style.width=s.dataset.w+"%"),60);
+  document.getElementById("detail").innerHTML = det.map(d=>`<div class="ligne"><span class="k"><i style="background:var(--${d[2]})"></i>${d[0]}</span><span>${eur(d[1])}</span></div>`).join("");
+  document.getElementById("impot").textContent = "−" + eur(p.impot);
+  // compteurs
+  const jr = v => (Math.round(v*10)/10).toLocaleString("fr-FR");
+  const cor = estimationCOR(annee);
+  document.getElementById("cCP").textContent = jr(congesRestants());
+  document.getElementById("cCOR").textContent = jr(nb(PROFIL.cor));
+  document.getElementById("cRC8").textContent = jr(nb(PROFIL.rc8));
+  document.getElementById("cCET").textContent = jr(nb(PROFIL.cet));
+  document.getElementById("corAide").textContent = `COR de janvier ${annee+1} : environ ${cor.cor} jour${cor.cor>1?"s":""} (≈ ${Math.round(cor.heures)} h travaillées sur ${annee}, au-delà de 1 620 h). Maladie, congés et récups ne comptent pas.`;
+}
+
+/* Équipes */
+function afficheEquipes(id, choix){
+  const el=document.getElementById(id);
+  el.innerHTML=[1,2,3,4,5].map(n=>`<button class="eq plaque${n===equipe?" sel":""}" data-n="${n}">${n}</button>`).join("");
+  el.querySelectorAll(".eq").forEach(b=>{ appui(b); b.onclick=()=>{ vibre(); choix(+b.dataset.n); }; });
+}
+function choisitEquipe(n){ equipe=n; try{localStorage.setItem(K("equipe"),n);}catch(e){} afficheEquipes("eqProf",choisitEquipe); afficheMois(); affichePanneau(); }
+
+function va(v){
+  document.querySelectorAll(".view").forEach(s=>s.classList.toggle("on", s.id==="v-"+v));
+  document.querySelectorAll(".onglet").forEach(t=>t.classList.toggle("sel", t.dataset.v===v));
+  if(v==="rap"){ moisRapport = null; afficheRapport(); }
+  if(v==="plan") ajuste();
+  const app = document.querySelector(".app");
+  app.classList.toggle("fixe", v==="plan");
+  app.scrollTop = 0;
+}
+function afficheProfil(){
+  document.querySelectorAll("[data-p]").forEach(i => { if (i.tagName === "INPUT") i.value = PROFIL[i.dataset.p] || ""; });
+}
+function enregistreProfil(b){
+  document.querySelectorAll("input[data-p]").forEach(i => { PROFIL[i.dataset.p] = i.type === "month" || i.type === "date" ? i.value : nb(i.value); });
+  try { localStorage.setItem(K("profil"), JSON.stringify(PROFIL)); } catch(e){}
+  enregistre(b);
+}
+function enregistre(b){
+  vibre(); clearTimeout(b._t);
+  b.innerHTML = `<span class="ok"><svg viewBox="0 0 20 20"><path d="M4 10.5 8.2 14.5 16 6"/></svg>Enregistré</span>`;
+  b._t = setTimeout(() => b.textContent = "Enregistrer", 1600);
+}
+let tt; function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("on"); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove("on"),1800); }
+
+["gesturestart","gesturechange"].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault()));
+function afficheCouleurs(){
+  const noms = {M:"Matin",A:"Après-midi",N:"Nuit",R:"Repos",C:"Remonte",J:"Poste à fixer",S:"Jour sup",CP:"Congé payé",RC:"Récup",MA:"Maladie"};
+  document.getElementById("couls").innerHTML = Object.keys(noms).map(k =>
+    `<label class="coul"><span>${noms[k]}</span><span class="pastille creux"><input type="color" data-k="${k}" value="${coul[k]}" aria-label="Couleur ${noms[k]}"></span></label>`).join("");
+  document.querySelectorAll("#couls input").forEach(inp => inp.addEventListener("input", e => {
+    coul[e.target.dataset.k] = e.target.value; appliqueCouleurs();
+    const pa = inp.parentNode; pa._r = pa._r || {x:1, v:0}; pa._r.v = 6; ressort(pa._r, 1, 380, 10, x => pa.style.scale = x);
+    try { localStorage.setItem(K("couleurs"), JSON.stringify(coul)); } catch(err){}
+  }));
+}
+function resetCouleurs(){ coul = {...COUL_DEF}; try{ localStorage.removeItem(K("couleurs")); }catch(e){} appliqueCouleurs(); afficheCouleurs(); toast("Couleurs d’origine remises"); }
+appliqueCouleurs(); afficheCouleurs(); afficheProfil();
+document.querySelectorAll(".pill,.onglet,.action,.valider,.lien").forEach(appui);
+let vu=false; try{ vu=!!localStorage.getItem(K("equipe")); }catch(e){}
+const acc=document.getElementById("accueil"); if(vu) acc.classList.add("off");
+afficheEquipes("eqAccueil", n=>{ choisitEquipe(n); acc.classList.add("off"); });
+choisitEquipe(equipe);
+
+/* Installation et mises à jour : l'app se garde sur le téléphone et propose les nouvelles versions */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").then(reg => {
+    const propose = sw => {
+      const t = document.getElementById("toast");
+      t.textContent = "Nouvelle version disponible · toucher pour mettre à jour";
+      t.style.pointerEvents = "auto"; t.classList.add("on"); clearTimeout(tt);
+      t.onclick = () => sw.postMessage("maj");
+    };
+    if (reg.waiting && navigator.serviceWorker.controller) propose(reg.waiting);
+    reg.addEventListener("updatefound", () => {
+      const n = reg.installing;
+      n.addEventListener("statechange", () => { if (n.state === "installed" && navigator.serviceWorker.controller) propose(n); });
+    });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) reg.update(); });
+  });
+  let recharge = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (!recharge){ recharge = true; location.reload(); } });
+}
+</script>
+</body>
+</html>
