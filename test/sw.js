@@ -1,6 +1,6 @@
 /* Mon Planning — service worker : l'app marche sans réseau, et propose les mises à jour */
-const VERSION = "mpt-2026-11-13-1";
-const FICHIERS = ["./", "./index.html", "./manifest.webmanifest", "../apple-touch-icon.png",
+const VERSION = "mpt-2026-11-12-2";
+const FICHIERS = ["./", "./index.html", "./bulletin.js", "./manifest.webmanifest", "../apple-touch-icon.png",
   "../icon-512.png", "../favicon.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(FICHIERS))); });
 self.addEventListener("activate", e => {
@@ -11,7 +11,7 @@ self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
   e.respondWith(caches.match(e.request, {ignoreSearch: true}).then(r => r || fetch(e.request).then(rep => {
     if (rep.ok && (e.request.url.startsWith(self.location.origin) || e.request.url.includes("fonts.g"))) {
-      const copie = rep.clone(); caches.open(VERSION).then(c => c.put(e.request, copie));
+      const copie = rep.clone(); caches.open(VERSION).then(c => c.put(e.request, copie));   // le lecteur PDF est gardé après la 1re fois
     }
     return rep;
   }).catch(() => caches.match("./index.html"))));

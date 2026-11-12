@@ -311,6 +311,24 @@ button:focus-visible{outline:2px solid var(--indigo);outline-offset:4px}
 .grille2 .saisie{padding:12px;font-size:16px}
 .vide{font-size:14px;font-weight:800;color:var(--corail);margin-top:10px;line-height:1.4}
 .annee .col{cursor:pointer}
+/* fiche réelle : un petit point vert au-dessus des mois vérifiés */
+.tube.reel{position:relative}
+.tube.reel::after{content:"";position:absolute;left:50%;top:-10px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--vert);box-shadow:0 1px 0 rgba(var(--ombre),.5)}
+/* comparaison fiche / app */
+.cmp{margin-top:16px}
+.cmpT,.cmpL{display:grid;grid-template-columns:1fr 74px 74px;align-items:center;column-gap:6px}
+.cmpT span{font-size:11px;font-weight:800;color:var(--muted);text-align:right;text-transform:uppercase;letter-spacing:.04em}
+.cmpL{font-size:14px;font-weight:700;padding:8px 0 6px}
+.cmpL > span{text-align:right;font-variant-numeric:tabular-nums}
+.cmpL > span.k{text-align:left;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmpL .k i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px}
+.cmpL > span:nth-child(3){color:var(--muted)}
+.cmpL.ko > span:nth-child(2){color:var(--rouge)}
+.cmpL.plus > span:nth-child(2){color:var(--vert)}
+.cmpB{grid-column:1 / -1;position:relative;height:8px;margin-top:6px;border-radius:99px;
+  background:var(--carte);box-shadow:inset 1px 2px 3px rgba(var(--ombre),.45),inset -1px -1px 2px var(--lumiere)}
+.cmpB b{position:absolute;left:0;top:1px;bottom:1px;border-radius:99px;opacity:.9}
+.cmpB b.est{background:none;border:1.5px solid rgba(var(--ombre),.55);top:0;bottom:0;box-sizing:border-box}
 </style>
 </head>
 <body>
@@ -372,6 +390,12 @@ button:focus-visible{outline:2px solid var(--indigo);outline-offset:4px}
       <div class="lignes" id="payeLignes"></div>
       <div class="vide" id="payeVide" hidden>Remplis ta paye dans Profil pour voir ton vrai net.</div>
     </div>
+    <div class="bloc plaque" id="cmp" hidden>
+      <h2 id="cmpTitre">Ta fiche de paye</h2>
+      <div class="duo"><div><b id="cmpReel">0 €</b><span>net sur ta fiche</span></div><div><b id="cmpEst">0 €</b><span>calculé par l’app</span></div></div>
+      <div class="cmp" id="cmpLignes"></div>
+      <p class="aide" id="cmpAide"></p>
+    </div>
     <div class="bloc plaque">
       <h2 id="anneeTitre">Ton année</h2>
       <div class="annee" id="annee12"></div>
@@ -397,6 +421,12 @@ button:focus-visible{outline:2px solid var(--indigo);outline-offset:4px}
     <div class="champ plaque"><div class="k">Ton équipe</div><div class="equipes" id="eqProf"></div></div>
     <div class="champ dalle"><div class="k">Couleurs du calendrier</div><div class="couls" id="couls"></div>
       <button class="pill plaque" style="margin-top:16px" onclick="resetCouleurs()">Couleurs d’origine</button></div>
+    <div class="champ dalle"><div class="k">Tes fiches de paye</div>
+      <button class="valider plaque" id="btnFiches" style="margin-top:4px" onclick="document.getElementById('fichesPdf').click()">Importer mes fiches de paye</button>
+      <input type="file" id="fichesPdf" accept="application/pdf,.pdf" multiple hidden onchange="importeFiches(this.files)">
+      <div id="listeFiches" style="margin-top:12px"></div>
+      <p class="aide">Choisis tes PDF (Digiposte ou Fichiers), plusieurs d’un coup si tu veux. L’app remplit ta paye, tes compteurs et recale ton calendrier avec tes vrais pointages. Tout est lu sur ton téléphone : rien n’est envoyé, et l’app ne garde ni ton n° de sécu ni ton IBAN.</p>
+    </div>
     <div class="champ dalle"><div class="k">Ta paye (en brut, sur ta fiche de paye)</div>
       <div class="grille2">
         <label>Salaire de base<input class="saisie creux" data-p="base" inputmode="decimal" placeholder="0"></label>
@@ -414,7 +444,7 @@ button:focus-visible{outline:2px solid var(--indigo);outline-offset:4px}
         <label>À la date du<input class="saisie creux" data-p="soldes" type="date"></label>
       </div></div>
     <button class="valider plaque" onclick="enregistreProfil(this)">Enregistrer</button>
-    <p class="aide">Bientôt, ces cases se rempliront toutes seules en important ta fiche de paye. Tes infos restent sur ton téléphone : personne d’autre ne les voit.</p>
+    <p class="aide">Ces cases se remplissent toutes seules quand tu importes une fiche. Tu peux aussi les corriger à la main. Tes infos restent sur ton téléphone : personne d’autre ne les voit.</p>
   </section>
 </div>
 
@@ -454,6 +484,7 @@ button:focus-visible{outline:2px solid var(--indigo);outline-offset:4px}
 </div>
 <div class="toast plaque" id="toast"></div>
 
+<script src="bulletin.js"></script>
 <script>
 const TEST = location.pathname.includes("/test/");
 const K = nom => (TEST ? "mpt-" : "mp-") + nom;
@@ -498,13 +529,14 @@ function jour(date){
   const c = cycle(date), e = EV[cle(date)];
   const prevu = c.p === "C" ? "R" : c.p;
   if (e){
-    if (e.g === "conge")   return { p:"CP", poste:prevu, g:"conge",   rem:c.rem, sup:false, c };
-    if (e.g === "rc")      return { p:"RC", poste:prevu, g:"rc",      rem:c.rem, sup:false, c };
-    if (e.g === "maladie") return { p:"MA", poste:prevu, g:"maladie", rem:c.rem, sup:false, c };
+    const pv = e.src === "fiche" && e.p ? e.p : prevu;     // la fiche de paye dit sur quel poste tombait l’absence
+    if (e.g === "conge")   return { p:"CP", poste:pv, g:"conge",   rem:c.rem, sup:false, c };
+    if (e.g === "rc")      return { p:"RC", poste:pv, g:"rc",      rem:c.rem, sup:false, c };
+    if (e.g === "maladie") return { p:"MA", poste:pv, g:"maladie", rem:c.rem, sup:false, c };
     if (e.g === "sup")     return { p:"S",  poste:e.p,   g:"sup",     rem:c.rem, sup:true,  c };
     if (e.g === "poste"){
       if (e.p === "R") return { p: c.rem ? "C" : "R", poste:"R", g:"cycle", rem:c.rem, sup:false, c };
-      if (c.rem && c.p !== "J") return { p:"S", poste:e.p, g:"sup", rem:true, sup:true, c };   // jour travaillé en remonte = jour sup
+      if (c.rem && c.p !== "J" && e.src !== "fiche") return { p:"S", poste:e.p, g:"sup", rem:true, sup:true, c };   // jour travaillé en remonte = jour sup
       return { p:e.p, poste:e.p, g: c.rem ? "patron" : "cycle", rem:c.rem, sup:false, c };
     }
   }
@@ -516,9 +548,11 @@ function jour(date){
    Par poste : primes du four, transport (non soumis). Nuit : prime de nuit, paniers. Dimanche/férié : prime.
    Jours sup : payés avec le bulletin qui suit le DERNIER jour sup du cycle, + majoration 25 % / 50 % au-delà de 175 h sur le cycle. */
 const REGLES = { tNuit:2.429, tDim:15.405, tFour:1.586, panier:4.09, panierNuit:7.50, transport:2.49, plusConge:80,
-  heuresPoste:7.9, seuilCycle:175, plafond25:40, partNet:.80, tauxImpot:.02, partImposable:.925, seuilCOR:1620 };
+  heuresPoste:7.9, seuilCycle:175, plafond25:40, kBase:.772, kSup:.89, tauxImpot:.02, partImposable:.925, seuilCOR:1620 };
 let PROFIL = { base:0, anc:0, taux:0, vac:0, entree:"", cp:0, cor:0, rc8:0, cet:0, soldes:"" };
 try { Object.assign(PROFIL, JSON.parse(localStorage.getItem(K("profil")) || "{}")); } catch(e){}
+const REGLES0 = {...REGLES};                                  // règles de base, avant la fiche
+if (PROFIL.regles) Object.assign(REGLES, PROFIL.regles);     // taux relus sur la dernière fiche de paye
 const nb = v => { const x = parseFloat(String(v ?? "").replace(/\s/g,"").replace(",", ".")); return isFinite(x) ? x : 0; };
 const ferie = d => !!nomFerie(d);
 function nomFerie(d){
@@ -537,7 +571,7 @@ const plusJ = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate()+n, 1
 function paye(annee, mois){                 // mois : 0 à 11 = mois où le bulletin est versé
   const R = REGLES, taux = nb(PROFIL.taux), base = nb(PROFIL.base), anc = nb(PROFIL.anc);
   const p = { jours:0, nuits:0, dimanches:0, feries:0, sup:0, conges:0, maladies:0, exceptionnel:0, nomExc:"",
-              fixe:base+anc, four:0, nuit:0, dimanche:0, ferie:0, majSup:0, nonSoumis:0 };
+              fixe:base+anc, four:0, nuit:0, dimanche:0, ferie:0, majSup:0, nonSoumis:0, plusConges:0 };
   if (mois === 5){ p.exceptionnel = nb(PROFIL.vac); p.nomExc = "Prime de vacances"; }
   if (mois === 11){ p.exceptionnel = base + anc; p.nomExc = "13e mois"; }
   const debut = new Date(annee, mois-1, 1, 12), m = debut.getMonth();
@@ -545,15 +579,15 @@ function paye(annee, mois){                 // mois : 0 à 11 = mois où le bull
   for (let d = debut; d.getMonth() === m; d = plusJ(d, 1)){
     const j = jour(d), fe = ferie(d), dim = d.getDay() === 0;
     if (j.g === "conge" || j.g === "rc"){
-      p.conges++; if (j.g === "conge") p.fixe += R.plusConge;
+      p.conges++; if (j.g === "conge"){ p.fixe += R.plusConge; p.plusConges += R.plusConge; }
       if (j.poste === "N") p.nuit += 8*R.tNuit + R.panier;
-      if (fe) p.ferie += 8*R.tDim; else if (dim) p.dimanche += 8*R.tDim;
+      if (fe || dim) p.dimanche += 8*R.tDim;                       // sur la fiche : « Pr. Dimanche-JF CP »
     } else if (j.g === "maladie"){ p.maladies++; }
-    else if (j.poste === "R"){ if (fe) p.ferie += 8*taux; }
+    else if (j.poste === "R"){ if (fe) p.ferie += 8*taux; }          // « Ind. JF Non Trav »
     else {
       p.jours++; p.four += 8*R.tFour; p.nonSoumis += R.transport;
       if (j.poste === "N"){ p.nuits++; p.nuit += R.panier; p.nonSoumis += R.panierNuit; if (!j.sup || dim || fe) p.nuit += 8*R.tNuit; }
-      if (fe){ p.feries++; p.ferie += 8*R.tDim + 8*taux; }
+      if (fe){ p.feries++; p.dimanche += 8*R.tDim; p.ferie += 8*taux; }   // « Prime Dimanche JF » + « Ind. JF Trav »
       else if (dim){ p.dimanches++; p.dimanche += 8*R.tDim; }
     }
   }
@@ -571,7 +605,8 @@ function paye(annee, mois){                 // mois : 0 à 11 = mois où le bull
     p.majSup += a*taux*.25 + b*taux*.5;
   }
   p.brut = p.fixe + p.exceptionnel + p.four + p.nuit + p.dimanche + p.ferie + p.majSup;
-  p.netAvant = p.brut*R.partNet + p.nonSoumis;
+  // net : les jours sup ont moins de cotisations (exonération) → deux parts, calées sur tes fiches
+  p.netAvant = (p.brut - p.majSup)*R.kBase + p.majSup*R.kSup + p.nonSoumis;
   p.impot = p.netAvant*R.partImposable*R.tauxImpot;
   p.net = p.netAvant - p.impot;
   p.k = p.brut > 0 ? p.net/p.brut : 0;
@@ -589,6 +624,143 @@ function estimationCOR(annee){
     const j = jour(d); if (j.poste !== "R" && j.g !== "conge" && j.g !== "rc" && j.g !== "maladie") h += 7.75;
   }
   return { heures:h, cor: Math.max(0, Math.floor((h - REGLES.seuilCOR)/8)) };
+}
+
+/* ===== Fiches de paye importées : lues sur le téléphone, rien n’est envoyé =====
+   Chaque fiche donne : les vrais montants du mois, les compteurs, et les pointages du mois d’avant. */
+let BULL = {}; try { BULL = JSON.parse(localStorage.getItem(K("bulletins")) || "{}"); } catch(e){}
+const sauveBULL = () => { try { localStorage.setItem(K("bulletins"), JSON.stringify(BULL)); } catch(e){} };
+const posteDe = h => { const x = parseInt(String(h || "").slice(0, 2), 10); return isNaN(x) ? null : x >= 2 && x < 10 ? "M" : x >= 10 && x < 18 ? "A" : "N"; };
+const tauxDe = (B, c) => (B.lignes.find(l => l.code === c) || {}).t || 0;
+const somme = (B, codes, rappels = true) => B.lignes.filter(l => codes.includes(l.code) && (rappels || !/rappel/i.test(l.lib))).reduce((s, l) => s + (l.pay || 0) - (l.ded || 0), 0);
+const netDe = B => B.net ?? (B.netAvant - (B.impot || 0));
+/* les familles de lignes de la fiche, pour comparer avec le calcul de l’app */
+const FAMILLES = [
+  ["Fixe", ["0181","0183","0191","1001"], p => p.fixe - p.plusConges, "taupe"],
+  ["Primes du four", ["1151","1152","1153","1154","1161","1171"], p => p.four, "or"],
+  ["Nuits", ["1101","1011","1311","1083"], p => p.nuit, "indigo"],
+  ["Dimanches et fériés", ["1091","1013"], p => p.dimanche, "corail"],
+  ["Indemnités fériés", ["1073","1081"], p => p.ferie, "vert"],
+  ["Jours sup", ["2001","2021","2023","2071"], p => p.majSup, "rouge"],
+  ["Congés", ["3213","4273"], p => p.plusConges, "taupe"],
+  ["Absences", ["3103","3113","4150"], p => 0, "taupe"]
+];
+const CODES_CONNUS = FAMILLES.flatMap(f => f[1]);
+
+function jourDuPointage(j){
+  const ev = c => j.ev.find(e => e.c === c);
+  if (ev("HSP")) return { g:"sup", p: posteDe(ev("HSP").debut) || "N", src:"fiche" };
+  if (ev("HRBADG")) return { g:"poste", p: posteDe(ev("HRBADG").debut) || "M", src:"fiche" };
+  const a = j.ev[0]; if (!a) return null;
+  const g = a.c === "CP" ? "conge" : (a.c === "MA" || a.c === "NP") ? "maladie" : "rc";   // RC (COR), AA… : absence payée
+  return { g, p: posteDe(a.debut), src:"fiche", code:a.c };
+}
+/* le mois des pointages devient la vérité dans le calendrier (sauf ce qui n’y figure pas) */
+function appliquePointages(B){
+  if (!B.jours || !B.jours.length) return;
+  const d0 = new Date(B.jours[0].d + "T12:00"), fin = new Date(d0.getFullYear(), d0.getMonth() + 1, 0, 12);
+  for (let d = d0; d <= fin; d = plusJ(d, 1)){
+    const k = cle(d), j = B.jours.find(x => x.d === k), e = j ? jourDuPointage(j) : null;
+    if (e) EV[k] = e;
+    else if (cycle(d).p === "R" || cycle(d).p === "C"){ if (EV[k]) delete EV[k]; }   // repos prévu et pas de pointage : rien à changer
+    else EV[k] = { g:"poste", p:"R", src:"fiche" };                                    // poste prévu mais pas pointé : pas travaillé
+  }
+}
+/* moindres carrés sur 2 parts : net = (brut − jours sup) × kBase + jours sup × kSup + non soumis */
+function caleNet(L){
+  let a = 0, b = 0, c = 0, y1 = 0, y2 = 0, tot = 0, totY = 0;
+  for (const B of L){
+    const hs = somme(B, ["2001","2021","2023","2071"]), x1 = B.brut - hs, y = B.netAvant - somme(B, ["8031","8063"]);
+    a += x1*x1; b += x1*hs; c += hs*hs; y1 += x1*y; y2 += hs*y; tot += B.brut; totY += y;
+  }
+  const det = a*c - b*b;
+  if (L.length >= 3 && det > 1e-6 * a * c){
+    const kB = (y1*c - y2*b)/det, kS = (a*y2 - b*y1)/det;
+    if (kB > .6 && kB < .9 && kS > .7 && kS < 1) return { kBase:kB, kSup:kS };
+  }
+  // peu de fiches : on garde l’écart habituel entre les deux parts (≈ 11 points de cotisations en moins sur les jours sup)
+  let hsT = 0; for (const B of L) hsT += somme(B, ["2001","2021","2023","2071"]);
+  const kB = (totY - .11*hsT) / tot; return { kBase:kB, kSup:Math.min(.97, kB + .11) };
+}
+function majProfil(){
+  const L = Object.values(BULL).sort((a, b) => a.periode < b.periode ? -1 : 1);
+  if (!L.length) return;
+  const B = L[L.length - 1], ligne = c => B.lignes.find(l => l.code === c);
+  if (B.base) PROFIL.base = B.base;
+  if (ligne("1001")) PROFIL.anc = ligne("1001").pay;
+  PROFIL.taux = tauxDe(B, "2001") || tauxDe(B, "1081") || tauxDe(B, "1073") || B.tauxHoraire || PROFIL.taux;
+  const vac = [...L].reverse().map(b => b.lignes.find(l => l.code === "4001")).find(Boolean); if (vac) PROFIL.vac = vac.pay;
+  if (B.entree) PROFIL.entree = B.entree;
+  if (B.conges){ const c = B.conges; PROFIL.cp = (c.reliquats?.restants || 0) + (c.droits?.restants || 0); PROFIL.cet = c.cet?.restants || 0; }
+  if (B.payeLe) PROFIL.soldes = B.payeLe;
+  // les taux, relus sur la dernière fiche qui les contient
+  const R = {}, cherche = c => { for (const b of [...L].reverse()){ const t = tauxDe(b, c); if (t) return t; } return 0; };
+  [["tNuit","1101"],["tDim","1091"],["panier","1311"],["panierNuit","8031"],["transport","8063"]].forEach(([k, c]) => { const t = cherche(c); if (t) R[k] = t; });
+  const chaleur = ["1153","1151","1152","1154"].map(cherche).find(Boolean), m1 = cherche("1161"), m2 = cherche("1171");
+  if (chaleur && m1 && m2) R.tFour = chaleur + m1 + m2;
+  const cp = L.map(b => ({ q: (b.lignes.find(l => l.code === "4273") || {}).q || 0, v: somme(b, ["3213","4273"]) })).filter(x => x.q > 0);
+  if (cp.length){ const q = cp.reduce((s, x) => s + x.q, 0); R.plusConge = cp.reduce((s, x) => s + x.v, 0) / q; }
+  Object.assign(R, caleNet(L));
+  if (B.tauxImpot != null) R.tauxImpot = B.tauxImpot;
+  const pi = L.filter(b => b.netImposable && b.netAvant).map(b => b.netImposable / b.netAvant);
+  if (pi.length) R.partImposable = pi.reduce((s, x) => s + x, 0) / pi.length;
+  PROFIL.regles = R;
+  Object.assign(REGLES, REGLES0, R);
+}
+/* tout recaler à partir des fiches gardées (calendrier, profil, taux) */
+function integreBulletins(){
+  Object.values(BULL).sort((a, b) => a.periode < b.periode ? -1 : 1).forEach(appliquePointages);
+  majProfil(); sauveBULL(); sauveEV();
+  try { localStorage.setItem(K("profil"), JSON.stringify(PROFIL)); } catch(e){}
+}
+/* fiche réelle du mois, comparée famille par famille au calcul de l’app */
+function compareFiche(annee, mois){
+  const B = BULL[`${annee}-${String(mois + 1).padStart(2, "0")}`]; if (!B) return null;
+  // on estime avec la base et le taux de l’époque (ceux écrits sur cette fiche)
+  const garde = { base:PROFIL.base, anc:PROFIL.anc, taux:PROFIL.taux }, l1001 = B.lignes.find(l => l.code === "1001");
+  if (B.base) PROFIL.base = B.base; if (l1001) PROFIL.anc = l1001.pay;
+  PROFIL.taux = tauxDe(B, "2001") || tauxDe(B, "1081") || tauxDe(B, "1073") || B.tauxHoraire || PROFIL.taux;
+  const p = paye(annee, mois);
+  Object.assign(PROFIL, garde);
+  const fam = FAMILLES.map(([nom, codes, est, c]) => ({ nom, c, reel: somme(B, codes, false), est: est(p) }));
+  const autres = B.brut - fam.reduce((s, f) => s + f.reel, 0);       // primes exceptionnelles, rappels…
+  fam.push({ nom: p.nomExc ? p.nomExc + " et autres" : "Rappels et autres", c:"vert", reel: autres, est: p.exceptionnel });
+  return { B, p, fam: fam.filter(f => Math.abs(f.reel) > .5 || Math.abs(f.est) > .5), reel: netDe(B) };
+}
+let PDFJS = null;
+function chargePdf(){
+  if (PDFJS) return PDFJS;
+  return PDFJS = new Promise((ok, ko) => {
+    const s = document.createElement("script");
+    s.src = "../vendor/pdfjs/pdf.min.js";
+    s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = "../vendor/pdfjs/pdf.worker.min.js"; ok(window.pdfjsLib); };
+    s.onerror = () => { PDFJS = null; ko(new Error("Lecteur de PDF introuvable : vérifie ta connexion")); };
+    document.head.appendChild(s);
+  });
+}
+async function importeFiches(files){
+  if (!files || !files.length) return;
+  const btn = document.getElementById("btnFiches"); btn.textContent = "Lecture…";
+  let ok = 0, rate = 0;
+  try {
+    const lib = await chargePdf();
+    for (const f of files){
+      try { const B = await lireBulletin(lib, new Uint8Array(await f.arrayBuffer())); BULL[B.periode] = B; ok++; }
+      catch(e){ rate++; }
+    }
+    if (ok){ integreBulletins(); afficheProfil(); afficheFiches(); afficheMois(); affichePanneau(); }
+    toast(ok ? `${ok} fiche${ok>1?"s":""} lue${ok>1?"s":""}${rate ? ` · ${rate} non reconnue${rate>1?"s":""}` : ""} · calendrier recalé` : "Ce n’est pas une fiche de paye reconnue");
+  } catch(e){ toast(e.message); }
+  btn.textContent = "Importer mes fiches de paye";
+  document.getElementById("fichesPdf").value = "";
+}
+function afficheFiches(){
+  const el = document.getElementById("listeFiches"); if (!el) return;
+  const L = Object.values(BULL).sort((a, b) => a.periode < b.periode ? 1 : -1);
+  const eur = v => Math.round(v).toLocaleString("fr-FR") + " €";
+  el.innerHTML = L.length ? L.map(B => { const [a, m] = B.periode.split("-");
+    return `<div class="ligne"><span class="k">${MOIS[+m-1].charAt(0).toUpperCase()+MOIS[+m-1].slice(1)} ${a}</span><span>${eur(netDe(B))}${B.jours.length ? ` · ${B.jours.length} jours relus` : ""}</span></div>`; }).join("")
+    : `<div class="vide">Aucune fiche pour l’instant.</div>`;
 }
 
 /* Couleurs personnalisables (gardées sur le téléphone) */
@@ -781,8 +953,8 @@ function affichePanneau(){
   const t = `${JOURS[choisi.getDay()]} ${choisi.getDate()} ${MOIS[choisi.getMonth()]}`;
   document.getElementById("jTitre").textContent = t.charAt(0).toUpperCase() + t.slice(1);
   const ecart = Math.round((choisi - AUJ)/864e5);
-  document.getElementById("jSous").textContent = ecart===0 ? "Aujourd’hui" : ecart===1 ? "Demain" : ecart===-1 ? "Hier"
-    : ecart>0 ? `Dans ${ecart} jours` : `Il y a ${-ecart} jours`;
+  document.getElementById("jSous").textContent = (ecart===0 ? "Aujourd’hui" : ecart===1 ? "Demain" : ecart===-1 ? "Hier"
+    : ecart>0 ? `Dans ${ecart} jours` : `Il y a ${-ecart} jours`) + ((EV[cle(choisi)]||{}).src === "fiche" ? " · vu sur ta fiche" : "");
   const detail = d.p==="S" ? `${NOM[d.poste]} · ${HEURES[d.poste]}` : (HEURES[d.p] || (d.p==="C" ? "heures sup possibles" : d.p==="CP"||d.p==="RC"||d.p==="MA" ? `prévu : ${NOM[d.poste]}` : "toute la journée"));
   document.getElementById("jMini").textContent = NOM[d.p] + (HEURES[d.p] && d.p!=="J" ? " · " + HEURES[d.p] : "");
   document.getElementById("evts").innerHTML = `<div class="evt creux"><i class="b-${d.p}"></i><b>${NOM[d.p]}</b><span>${detail}</span></div>`;
@@ -858,9 +1030,11 @@ let moisRapport = null;
 function afficheRapport(){
   const annee = AUJ.getFullYear(), mois = moisRapport ?? AUJ.getMonth(), p = paye(annee, mois), k = p.k;
   const vide = nb(PROFIL.base) === 0;
+  const cmp = compareFiche(annee, mois);
   document.getElementById("payeVide").hidden = !vide;
-  document.getElementById("payeTitre").textContent = `Paye de fin ${MOIS[mois]} · travail ${deMois(p.moisTravail.getMonth())}`;
-  compte(document.getElementById("net"), Math.round(p.net));
+  document.getElementById("payeTitre").textContent = `Paye de fin ${MOIS[mois]} · ${cmp ? "fiche importée" : "travail " + deMois(p.moisTravail.getMonth())}`;
+  compte(document.getElementById("net"), Math.round(cmp ? cmp.reel : p.net));
+  afficheComparaison(cmp);
   const act = [`${p.jours} jours`, `${p.nuits} nuits`, `${p.dimanches} dimanche${p.dimanches>1?"s":""}`];
   if (p.feries) act.push(`${p.feries} férié${p.feries>1?"s":""}`);
   if (p.conges + p.maladies) act.push(`${p.conges+p.maladies} absence${p.conges+p.maladies>1?"s":""}`);
@@ -870,21 +1044,23 @@ function afficheRapport(){
     (p.sup ? `<div class="ligne"><span class="k">${p.sup} jour${p.sup>1?"s":""} sup</span><span style="color:var(--rouge)">+${eur(p.majSup*k)}</span></div>` : "") +
     (p.exceptionnel ? `<div class="ligne"><span class="k">${p.nomExc}</span><span>+${eur(p.exceptionnel*k)}</span></div>` : "");
   // l’année : chaque barre = le net versé ce mois-là ; touche une barre pour voir ce mois
-  const payes = Array.from({length:12}, (_, i) => paye(annee, i)), nets = payes.map(x => x.net), max = Math.max(1, ...nets), cour = AUJ.getMonth();
+  const payes = Array.from({length:12}, (_, i) => paye(annee, i)), cour = AUJ.getMonth();
+  const ficheDu = i => BULL[`${annee}-${String(i+1).padStart(2,"0")}`];
+  const nets = payes.map((x, i) => ficheDu(i) ? netDe(ficheDu(i)) : x.net), max = Math.max(1, ...nets);
   document.getElementById("anneeTitre").textContent = `Ton année ${annee}`;
   const a = document.getElementById("annee12");
-  a.innerHTML = nets.map((v,i)=>`<div class="col" data-m="${i}"><div class="tube${i===mois?" ce":""}${i>cour?" futur":""}" style="height:${Math.max(4, v/max*100)}%"></div><small>${MOIS[i][0].toUpperCase()}</small></div>`).join("");
+  a.innerHTML = nets.map((v,i)=>`<div class="col" data-m="${i}"><div class="tube${i===mois?" ce":""}${i>cour?" futur":""}${ficheDu(i)?" reel":""}" style="height:${Math.max(4, v/max*100)}%"></div><small>${MOIS[i][0].toUpperCase()}</small></div>`).join("");
   a.querySelectorAll(".tube").forEach((t,i)=>{ const e={x:0,v:0}; t.style.transform="scaleY(0)";
     setTimeout(()=>ressort(e,1,170,11,x=>t.style.transform=`scaleY(${Math.max(0,x)})`), 120+i*55); });
   a.querySelectorAll(".col").forEach(c => c.onclick = () => { moisRapport = +c.dataset.m; vibre(); afficheRapport(); });
   const passes = payes.slice(0, cour+1);
-  document.getElementById("moyenne").textContent = eur(passes.reduce((s,x)=>s+x.net,0) / passes.length);
+  document.getElementById("moyenne").textContent = eur(nets.slice(0, cour+1).reduce((s,x)=>s+x,0) / passes.length);
   const supAn = passes.reduce((s,x)=>s+x.majSup*x.k,0), jSup = passes.reduce((s,x)=>s+x.sup,0);
   document.getElementById("supAn").textContent = eur(supAn);
   document.getElementById("supAnTxt").textContent = `gagnés en ${jSup} jour${jSup>1?"s":""} sup`;
   // détail en net
   const det = [["Fixe"+(p.conges?" + congés":""), p.fixe*k, "taupe"], [p.nomExc||"Prime", p.exceptionnel*k, "vert"], ["Primes du four", p.four*k, "or"],
-               ["Nuits", p.nuit*k, "indigo"], ["Dimanches", p.dimanche*k, "corail"], ["Fériés", p.ferie*k, "vert"], ["Jours sup", p.majSup*k, "rouge"]].filter(d => d[1] > 0.5);
+               ["Nuits", p.nuit*k, "indigo"], ["Dimanches et fériés", p.dimanche*k, "corail"], ["Indemnités fériés", p.ferie*k, "vert"], ["Jours sup", p.majSup*k, "rouge"]].filter(d => d[1] > 0.5);
   const tot = Math.max(1, det.reduce((s,d)=>s+d[1],0));
   const cap = document.getElementById("capsule");
   cap.innerHTML = det.map((d,i)=>`<div class="seg" data-w="${d[1]/tot*100}" style="background-color:var(--${d[2]});transition-delay:${300+i*110}ms"></div>`).join("");
@@ -899,6 +1075,29 @@ function afficheRapport(){
   document.getElementById("cRC8").textContent = jr(nb(PROFIL.rc8));
   document.getElementById("cCET").textContent = jr(nb(PROFIL.cet));
   document.getElementById("corAide").textContent = `COR de janvier ${annee+1} : environ ${cor.cor} jour${cor.cor>1?"s":""} (≈ ${Math.round(cor.heures)} h travaillées sur ${annee}, au-delà de 1 620 h). Maladie, congés et récups ne comptent pas.`;
+}
+
+/* Fiche réelle contre calcul de l’app, famille par famille (en brut, comme sur la fiche) */
+function afficheComparaison(c){
+  const bloc = document.getElementById("cmp"); bloc.hidden = !c; if (!c) return;
+  const eur = v => Math.round(v).toLocaleString("fr-FR") + " €";
+  const [a, m] = c.B.periode.split("-");
+  document.getElementById("cmpTitre").textContent = `Ta fiche de ${MOIS[+m-1]} ${a}`;
+  compte(document.getElementById("cmpReel"), Math.round(c.reel));
+  compte(document.getElementById("cmpEst"), Math.round(c.p.net));
+  const max = Math.max(1, ...c.fam.map(f => Math.max(Math.abs(f.reel), Math.abs(f.est))));
+  const bonus = f => f.c === "vert" && /autres/.test(f.nom) && f.reel >= f.est;   // un rappel ou une prime en plus : pas une erreur
+  const tol = f => Math.max(15, Math.abs(f.reel) * .04);      // 4 % ou 15 € : en dessous, c’est normal
+  document.getElementById("cmpLignes").innerHTML =
+    `<div class="cmpT"><span></span><span>fiche</span><span>app</span></div>` +
+    c.fam.map(f => { const ec = f.reel - f.est, ko = Math.abs(ec) > tol(f), plus = ko && bonus(f);
+      return `<div class="cmpL${ko && !plus ? " ko" : ""}${plus ? " plus" : ""}"><span class="k"><i style="background:var(--${f.c})"></i>${f.nom}</span><span>${eur(f.reel)}</span><span>${eur(f.est)}</span>
+        <div class="cmpB"><b style="width:${Math.abs(f.reel)/max*100}%;background:var(--${f.c})"></b><b class="est" style="width:${Math.abs(f.est)/max*100}%"></b></div></div>`; }).join("");
+  const ecarts = c.fam.filter(f => Math.abs(f.reel - f.est) > tol(f) && !bonus(f)), extra = c.fam.filter(f => Math.abs(f.reel - f.est) > tol(f) && bonus(f)), ecNet = c.reel - c.p.net;
+  const txtExtra = extra.length ? ` Il y a aussi ${eur(extra[0].reel - extra[0].est)} en plus (rappel ou prime exceptionnelle).` : "";
+  document.getElementById("cmpAide").textContent = (!ecarts.length
+    ? `Tout colle : ta fiche et le calcul de l’app tombent d’accord (${ecNet >= 0 ? "+" : "−"}${eur(Math.abs(ecNet))} sur le net).`
+    : `À regarder : ${ecarts.map(f => `${f.nom.toLowerCase()} (${f.reel - f.est > 0 ? "+" : "−"}${eur(Math.abs(f.reel - f.est))} sur la fiche)`).join(", ")}. Si tu ne vois pas pourquoi, demande au service paye.`) + txtExtra;
 }
 
 /* Équipes */
@@ -945,7 +1144,7 @@ function afficheCouleurs(){
   }));
 }
 function resetCouleurs(){ coul = {...COUL_DEF}; try{ localStorage.removeItem(K("couleurs")); }catch(e){} appliqueCouleurs(); afficheCouleurs(); toast("Couleurs d’origine remises"); }
-appliqueCouleurs(); afficheCouleurs(); afficheProfil();
+appliqueCouleurs(); afficheCouleurs(); afficheProfil(); afficheFiches();
 document.querySelectorAll(".pill,.onglet,.action,.valider,.lien").forEach(appui);
 let vu=false; try{ vu=!!localStorage.getItem(K("equipe")); }catch(e){}
 const acc=document.getElementById("accueil"); if(vu) acc.classList.add("off");
